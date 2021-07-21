@@ -12,6 +12,8 @@ use cache::Caches;
 use std::fs::File;
 use std::io::Read;
 
+pub(crate) const CLOCK_DELAY: f64 = 1.0 / 60.0;
+
 /// Chip8 context.
 pub struct Chip8 {
     SP: usize,
@@ -22,12 +24,12 @@ pub struct Chip8 {
     memory: [u8; 4096],
     delay: u8,
     sound: u8,
-    screen: [bool; 2048],
+    pub screen: [[bool; 64]; 32],
     keys: [bool; 16],
 
     last_key: u8,
-    clock_delay: f64,
-    dec_timer_ms: f64,
+    speed_delay: f64,
+    timer: f64,
 
     caches: Caches,
 }
@@ -47,12 +49,12 @@ impl Chip8 {
             memory: [0; 4096],
             delay: 0,
             sound: 0,
-            screen: [false; 2048],
+            screen: [[false; 64]; 32],
             keys: [false; 16],
 
             last_key: 255,
-            clock_delay: 1.0 / freq as f64,
-            dec_timer_ms: 0.0,
+            speed_delay: 1.0 / freq as f64,
+            timer: 0.0,
 
             caches: Caches::new(),
         };
@@ -98,7 +100,7 @@ impl Chip8 {
     }
 
     fn clear_screen(&mut self) {
-        self.screen = [false; 2048];
+        self.screen = [[false; 64]; 32];
     }
 
     /// Sets a key as pressed or unpressed.
@@ -119,13 +121,14 @@ impl Chip8 {
 
             for i in 0..8u8 {
                 if line & (0x80 >> i) != 0 {
-                    let index: usize = ((self.V[y] + j) as usize * 64 + (self.V[x] + i) as usize) % 2048;
+                    let y = ((self.V[y] + j) % 32) as usize;
+                    let x = ((self.V[x] + i) % 64) as usize;
 
-                    if self.screen[index] {
-                        self.screen[index] = false;
+                    if self.screen[y][x] {
+                        self.screen[y][x] = false;
                         self.V[15] = 1;
                     } else {
-                        self.screen[index] = true;
+                        self.screen[y][x] = true;
                         self.V[15] = 0;
                     }
                 }

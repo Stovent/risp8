@@ -13,3 +13,5 @@ edition = "2018"
 [dependencies]
 rand = "0.7.0"
 memmap = "0.7.0"
+winit = "0.25.0"
+pixels = "0.5.0"

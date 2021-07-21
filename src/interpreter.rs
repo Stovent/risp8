@@ -1,4 +1,4 @@
-use crate::Chip8;
+use crate::*;
 
 use rand::Rng;
 
@@ -6,6 +6,7 @@ impl Chip8 {
     /// Executes a single instruction using the interpreter mode.
     pub fn interpreter(&mut self) {
         let opcode: u16 = ((self.memory[self.PC as usize] as u16) << 8) | (self.memory[self.PC as usize + 1] as u16);
+        #[cfg(debug_assertions)]
         println!("opcode {:04X} at {:#X}", opcode, self.PC);
         self.PC += 2;
 
@@ -145,7 +146,7 @@ impl Chip8 {
             0xD => {
                 let x: usize = ((opcode >> 8) & 0xF) as usize;
                 let y: usize = ((opcode >> 4) & 0xF) as usize;
-                let n: u8 = (opcode & 0xFF) as u8;
+                let n: u8 = (opcode & 0xF) as u8;
                 self.draw(x, y, n);
             },
             0xE => match opcode & 0xF0FF {
@@ -213,8 +214,8 @@ impl Chip8 {
             _ => println!("Unknown opcode {}", opcode),
         };
 
-        self.dec_timer_ms += self.clock_delay;
-        while self.dec_timer_ms >= 1000.0 / 60.0 {
+        self.timer += self.speed_delay;
+        while self.timer >= CLOCK_DELAY {
             if self.delay > 0 {
                 self.delay -= 1;
             }
@@ -223,9 +224,9 @@ impl Chip8 {
                 // TODO: play sound
                 self.sound -= 1;
             }
-            self.dec_timer_ms -= 1000.0 / 60.0;
+            self.timer -= CLOCK_DELAY;
         }
 
-        std::thread::sleep(std::time::Duration::from_secs_f64(self.clock_delay));
+        std::thread::sleep(std::time::Duration::from_secs_f64(self.speed_delay));
     }
 }
