@@ -5,7 +5,6 @@ mod cache;
 mod interpreter;
 mod jit;
 mod utils;
-mod x86;
 
 use cache::Caches;
 

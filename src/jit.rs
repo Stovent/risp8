@@ -1,6 +1,7 @@
 use crate::Chip8;
 use crate::utils::*;
-use crate::x86::*;
+
+use dynasmrt::{dynasm, DynasmApi, x64::Assembler};
 
 #[derive(Debug)]
 pub enum Interrupts {
@@ -43,7 +44,8 @@ impl Chip8 {
     }
 
     fn compile_block(&mut self) {
-        let cache = self.caches.get_or_create(self.PC);
+        let pc = self.PC;
+        let mut asm = Assembler::new().expect("Failed to create new assembler");
 
         'outer: loop {
             let opcode: u16 = ((self.memory[self.PC as usize] as u16) << 8) | (self.memory[self.PC as usize + 1] as u16);
@@ -54,117 +56,219 @@ impl Chip8 {
                 0x0 => {
                     match opcode {
                         0x00E0 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0x00EE => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         _ => println!("Unknown opcode {}", opcode),
                     }
                 },
                 0x1 => {
-                    cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                        ; ret
+                    );
                     break 'outer;
                 },
                 0x2 => {
-                    cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                        ; ret
+                    );
                     break 'outer;
                 },
                     0x3 => {
-                    cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                        ; ret
+                    );
                     break 'outer;
                 },
                 0x4 => {
-                    cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                        ; ret
+                    );
                     break 'outer;
                 },
                 0x5 => {
-                    cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                        ; ret
+                    );
                     break 'outer;
                 },
                 0x6 => {
                     let x = ((opcode >> 8) & 0xF) as usize;
-                    let kk = (opcode & 0xFF) as u8;
-                    cache.mov_mem_imm8(self.V.address_u32(x as isize), kk);
+                    let kk = (opcode & 0xFF) as i8;
+                    let addr = self.V.address(x as isize) as i64;
+                    println!("addr {}: {:X}", x, addr);
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov rbx, QWORD addr
+                        ; mov BYTE [rbx], kk
+                    );
                 },
                 0x7 => {
                     let x = ((opcode >> 8) & 0xF) as usize;
-                    let kk = (opcode & 0xFF) as u8;
-                    cache.add_mem_imm8(self.V.address_u32(x as isize), kk);
+                    let kk = (opcode & 0xFF) as i8;
+                    let addr = self.V.address(x as isize) as i64;
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov rbx, QWORD addr
+                        ; add BYTE [rbx], kk
+                    );
                 },
                 0x8 => {
                     match opcode & 0xF00F {
                         0x8000 => {
                             let x = ((opcode >> 8) & 0xF) as usize;
                             let y = ((opcode >> 4) & 0xF) as usize;
-                            cache.mov_eax_mem(self.V.address_u32(y as isize));
-                            cache.mov_mem_eax(self.V.address_u32(x as isize));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov al, BYTE [self.V.address(y as isize) as i32]
+                                ; mov BYTE [self.V.address(x as isize) as i32], al
+                            );
                         },
                         0x8001 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0x8002 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0x8003 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0x8004 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0x8005 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0x8006 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0x8007 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0x800E => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         _ => println!("Unknown opcode {}", opcode),
                     }
                 },
                 0x9 => {
-                    cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                        ; ret
+                    );
                     break 'outer;
                 },
                 0xA => {
-                    cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                        ; ret
+                    );
                     break 'outer;
                 },
                 0xB => {
-                    cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                        ; ret
+                    );
                     break 'outer;
                 },
                 0xC => {
-                    cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                        ; ret
+                    );
                     break 'outer;
                 },
                 0xD => {
-                    cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                    dynasm!(asm
+                        ; .arch x64
+                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                        ; ret
+                    );
                     break 'outer;
                 },
                 0xE => {
                     match opcode & 0xF0FF {
                         0xE09E => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0xE0A1 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         _ => println!("Unknown opcode {}", opcode),
@@ -173,39 +277,75 @@ impl Chip8 {
                 0xF => {
                     match opcode & 0xF0FF {
                         0xF007 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0xF00A => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0xF015 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0xF018 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0xF01E => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0xF029 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0xF033 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0xF055 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         0xF065 => {
-                            cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
+                                ; ret
+                            );
                             break 'outer;
                         },
                         _ => println!("Unknown opcode {}", opcode),
@@ -214,6 +354,8 @@ impl Chip8 {
                 _ => println!("Unknown opcode {}", opcode),
             };
         }
+
+        self.caches.create(pc, asm.finalize().unwrap());
 
         // self.timer += self.clock_delay;
         // while self.timer >= 1000.0 / 60.0 {

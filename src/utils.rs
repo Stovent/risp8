@@ -15,14 +15,14 @@ pub fn breakpoint() {
 }
 
 pub trait Address {
-    fn address_u32(&mut self, offset: isize) -> u32;
+    fn address(&mut self, offset: isize) -> usize;
 }
 
 impl<T, const N: usize> Address for [T; N] {
-    fn address_u32(&mut self, offset: isize) -> u32 {
+    fn address(&mut self, offset: isize) -> usize {
         unsafe {
             let ptr = self.as_ptr();
-            ptr.offset(offset as isize) as u32
+            ptr.offset(offset) as usize
         }
     }
 }
