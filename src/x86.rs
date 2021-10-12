@@ -18,7 +18,7 @@ pub trait ICache {
     fn push_32(&mut self, _: u32);
 }
 
-pub trait X86Emitter<T: ICache> : ICache {
+pub trait X86Emitter : ICache {
     fn add_mem_imm8(&mut self, addr: u32, imm: u8) {
         log(format!("add [{:#X}], {}", addr, imm));
         self.push_8(0x80);

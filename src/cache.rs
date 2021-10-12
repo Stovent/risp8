@@ -44,7 +44,7 @@ impl ICache for Cache {
     }
 }
 
-impl X86Emitter<Cache> for Cache {}
+impl X86Emitter for Cache {}
 
 pub struct Caches {
     caches: Vec<Cache>,

@@ -7,23 +7,35 @@ use winit::dpi::PhysicalSize;
 
 use pixels::*;
 
+use std::time::Duration;
+use std::sync::{Arc, Mutex};
+use std::thread;
+
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
 
 fn main() {
-    let mut chip8 = match Chip8::new("ROM/MAZE.ch8", 1000) {
+    let freq = 10000usize;
+    let chip8 = match Chip8::new("ROM/MAZE.ch8", freq) {
         Ok(c) => c,
         Err(e) => {
             println!("{}", e);
             return;
         }
     };
+    let chip8_thread = Arc::new(Mutex::new(chip8));
+    let chip8_gui = chip8_thread.clone();
 
-    // for _i in 0..1000 {
-    //     chip8.interpreter();
-    // }
+    let run_thread = Arc::new(Mutex::new(true));
+    let run_gui = run_thread.clone();
 
-    // chip8.jit();
+    let _thread_join = thread::spawn(move || {
+        while *run_thread.lock().unwrap() {
+            chip8_thread.lock().unwrap().jit();
+            // chip8_thread.lock().unwrap().interpreter();
+            // thread::sleep(Duration::from_micros(1));
+        }
+    });
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -41,15 +53,16 @@ fn main() {
     event_loop.run(move |event, _, flow| {
         match event {
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+                *run_gui.lock().unwrap() = false;
                 *flow = ControlFlow::Exit;
             },
             Event::MainEventsCleared => {
-                chip8.interpreter();
-                draw(&chip8.screen, pixels.get_frame());
+                draw(&chip8_gui.lock().unwrap().screen, pixels.get_frame());
                 pixels.render().unwrap();
+                thread::sleep(Duration::from_micros(16666));
             },
             Event::DeviceEvent { event: DeviceEvent::Key(key), .. } => {
-                handle_keyboard(&mut chip8, &key);
+                handle_keyboard(&mut chip8_gui.lock().unwrap(), &key);
             },
             _ => (),
         }
