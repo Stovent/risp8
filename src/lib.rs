@@ -11,7 +11,7 @@ use cache::Caches;
 use std::fs::File;
 use std::io::Read;
 
-pub(crate) const CLOCK_DELAY: f64 = 1.0 / 60.0;
+const CLOCK_DELAY: f64 = 1.0 / 60.0;
 
 /// Chip8 context.
 pub struct Chip8 {

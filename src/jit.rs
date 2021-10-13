@@ -47,6 +47,11 @@ impl Chip8 {
         let pc = self.PC;
         let mut asm = Assembler::new().expect("Failed to create new assembler");
 
+        dynasm!(asm
+            ; .arch x64
+            ; push rbx
+        );
+
         'outer: loop {
             let opcode: u16 = ((self.memory[self.PC as usize] as u16) << 8) | (self.memory[self.PC as usize + 1] as u16);
 
@@ -59,7 +64,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -67,7 +71,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -78,7 +81,6 @@ impl Chip8 {
                     dynasm!(asm
                         ; .arch x64
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                        ; ret
                     );
                     break 'outer;
                 },
@@ -86,7 +88,6 @@ impl Chip8 {
                     dynasm!(asm
                         ; .arch x64
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                        ; ret
                     );
                     break 'outer;
                 },
@@ -94,7 +95,6 @@ impl Chip8 {
                     dynasm!(asm
                         ; .arch x64
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                        ; ret
                     );
                     break 'outer;
                 },
@@ -102,7 +102,6 @@ impl Chip8 {
                     dynasm!(asm
                         ; .arch x64
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                        ; ret
                     );
                     break 'outer;
                 },
@@ -110,7 +109,6 @@ impl Chip8 {
                     dynasm!(asm
                         ; .arch x64
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                        ; ret
                     );
                     break 'outer;
                 },
@@ -140,17 +138,20 @@ impl Chip8 {
                         0x8000 => {
                             let x = ((opcode >> 8) & 0xF) as usize;
                             let y = ((opcode >> 4) & 0xF) as usize;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addry = self.V.address(y as isize) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov al, BYTE [self.V.address(y as isize) as i32]
-                                ; mov BYTE [self.V.address(x as isize) as i32], al
+                                ; mov rbx, QWORD addry
+                                ; mov al, BYTE [rbx]
+                                ; mov rbx, QWORD addrx
+                                ; mov BYTE [rbx], al
                             );
                         },
                         0x8001 => {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -158,7 +159,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -166,7 +166,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -174,7 +173,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -182,7 +180,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -190,7 +187,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -198,7 +194,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -206,7 +201,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -217,7 +211,6 @@ impl Chip8 {
                     dynasm!(asm
                         ; .arch x64
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                        ; ret
                     );
                     break 'outer;
                 },
@@ -225,7 +218,6 @@ impl Chip8 {
                     dynasm!(asm
                         ; .arch x64
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                        ; ret
                     );
                     break 'outer;
                 },
@@ -233,7 +225,6 @@ impl Chip8 {
                     dynasm!(asm
                         ; .arch x64
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                        ; ret
                     );
                     break 'outer;
                 },
@@ -241,7 +232,6 @@ impl Chip8 {
                     dynasm!(asm
                         ; .arch x64
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                        ; ret
                     );
                     break 'outer;
                 },
@@ -249,7 +239,6 @@ impl Chip8 {
                     dynasm!(asm
                         ; .arch x64
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                        ; ret
                     );
                     break 'outer;
                 },
@@ -259,7 +248,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -267,7 +255,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -280,7 +267,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -288,7 +274,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -296,7 +281,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -304,7 +288,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -312,7 +295,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -320,7 +302,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -328,7 +309,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -336,7 +316,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -344,7 +323,6 @@ impl Chip8 {
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, self.PC - 2) as i32
-                                ; ret
                             );
                             break 'outer;
                         },
@@ -354,6 +332,12 @@ impl Chip8 {
                 _ => println!("Unknown opcode {}", opcode),
             };
         }
+
+        dynasm!(asm
+            ; .arch x64
+            ; pop rbx
+            ; ret
+        );
 
         self.caches.create(pc, asm.finalize().unwrap());
 

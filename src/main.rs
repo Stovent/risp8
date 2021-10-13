@@ -71,7 +71,6 @@ fn main() {
 
 fn handle_keyboard(chip8: &mut Chip8, key: &KeyboardInput) {
     if key.virtual_keycode.is_some() {
-        println!("key: {:?}", key.virtual_keycode.unwrap());
         match key.virtual_keycode.unwrap() {
             VirtualKeyCode::Numpad0 => { chip8.set_key(0x0, key.state == ElementState::Pressed) },
             VirtualKeyCode::Numpad7 => { chip8.set_key(0x1, key.state == ElementState::Pressed) },
