@@ -128,7 +128,7 @@ impl Chip8 {
                         self.V[15] = (self.V[x] & 0x80) >> 7;
                         self.V[x] <<= 1;
                     },
-                    _ => println!("Unknown opcode {}", opcode),
+                    _ => panic!("Unknown opcode {}", opcode),
                 }
             },
             0x9 => {
@@ -164,7 +164,7 @@ impl Chip8 {
                         self.PC += 2
                     }
                 },
-                _ => println!("Unknown opcode {}", opcode),
+                _ => panic!("Unknown opcode {}", opcode),
             },
             0xF => match opcode & 0xF0FF {
                 0xF007 => {
@@ -211,9 +211,9 @@ impl Chip8 {
                         self.V[i] = self.memory[(self.I as usize + i) as usize];
                     }
                 },
-                _ => println!("Unknown opcode {}", opcode),
+                _ => panic!("Unknown opcode {}", opcode),
             },
-            _ => println!("Unknown opcode {}", opcode),
+            _ => panic!("Unknown opcode {}", opcode),
         };
 
         if self.timer.elapsed() >= Duration::from_micros(16666) {

@@ -13,6 +13,6 @@ overflow-checks = false
 
 [dependencies]
 rand = "0.7.0"
-dynasmrt = "1.2.0"
-winit = "0.26.0"
-pixels = "0.8.0"
+dynasmrt = "1.2.1"
+winit = "0.26.1"
+pixels = "0.9.0"

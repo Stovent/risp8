@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 #![allow(non_snake_case)]
 
 mod cache;
@@ -11,8 +10,6 @@ use cache::Caches;
 use std::fs::File;
 use std::io::Read;
 use std::time::Instant;
-
-const CLOCK_DELAY: f64 = 1.0 / 60.0;
 
 /// Chip8 context.
 pub struct Chip8 {
@@ -105,18 +102,17 @@ impl Chip8 {
     /// `key` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
     /// `pressed` = true if pressed, false if released.
     pub fn set_key(&mut self, key: usize, pressed: bool) {
-        if key > 15 {
-            return;
+        if key <= 0xF {
+            self.keys[key] = pressed;
+            self.last_key = key as u8;
         }
-        self.keys[key] = pressed;
-        self.last_key = key as u8;
     }
 
     fn draw(&mut self, x: usize, y: usize, n: u8) {
         for j in 0..n {
-            let line: u8 = self.memory[(self.I + j as u16) as usize];
+            let line = self.memory[(self.I + j as u16) as usize];
 
-            for i in 0..8u8 {
+            for i in 0..8 {
                 if line & (0x80 >> i) != 0 {
                     let y = ((self.V[y] + j) % 32) as usize;
                     let x = ((self.V[x] + i) % 64) as usize;
