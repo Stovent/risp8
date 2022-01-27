@@ -22,7 +22,7 @@ impl Cache {
         let func = self.exec.ptr(AssemblyOffset(0));
         let mut ret = 0;
 
-        // Saves the caller-saved registers RAX and RDX. RAX/EAX is used for the return value. RDX is used by the compiled code.
+        // Saves the caller-saved registers RAX and RDX.
         // Call the cached code.
         // Move the return value to the `ret` variable.
         // Restore the registers and lend control back to the function.
@@ -33,14 +33,14 @@ impl Cache {
             ; mov rax, QWORD func as _
             ; call rax
             ; mov rdx, QWORD &mut ret as *mut u32 as _
-            ; mov [rdx], eax
+            ; mov DWORD [rdx], eax
             ; pop rax
             ; pop rdx
             ; ret
         );
 
         unsafe {
-            std::mem::transmute::<*const u8, fn() -> u32>(caller.finalize().unwrap().ptr(AssemblyOffset(0)))();
+            std::mem::transmute::<*const u8, fn()>(caller.finalize().unwrap().ptr(AssemblyOffset(0)))();
         }
 
         // log(format!("Cache execution returned with value {:#X}", ret));
@@ -59,11 +59,11 @@ impl Caches {
         }
     }
 
-    pub fn get(&mut self, pc: u16) -> Option<&mut Cache> {
-        self.caches.iter_mut().find(|el| el.pc == pc)
+    pub fn add(&mut self, pc: u16, exec: ExecutableBuffer) {
+        self.caches.push(Cache::new(pc, exec));
     }
 
-    pub fn create(&mut self, pc: u16, exec: ExecutableBuffer) {
-        self.caches.push(Cache::new(pc, exec));
+    pub fn get(&mut self, pc: u16) -> Option<&mut Cache> {
+        self.caches.iter_mut().find(|el| el.pc == pc)
     }
 }
