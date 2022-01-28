@@ -1,7 +1,7 @@
 use crate::Chip8;
 use crate::utils::*;
 
-use dynasmrt::{dynasm, DynasmApi, x64::Assembler};
+use dynasmrt::{dynasm, DynasmApi, DynasmLabelApi, x64::Assembler};
 
 #[derive(Debug)]
 pub enum Interrupts {
@@ -41,7 +41,9 @@ impl Chip8 {
 
     // For self-modifying code, store the memory range used by each cache, and when writing to
     // this location, invalidate the cache with an interrupt, perform the assignment in interpreter, then recompile the block.
-    /// Uses the RDX register.
+    /// Uses the RAX, RCX and RDX (caller-saved) registers.
+    ///
+    /// EAX contains the return value of the block. RAX, RCX and RDX are used internally by the compiled code.
     fn compile_block(&mut self, mut pc: u16) {
         let block_pc = pc;
         let mut asm = Assembler::new().expect("Failed to create new assembler");
@@ -320,67 +322,155 @@ impl Chip8 {
                 0xF => {
                     match opcode & 0xF0FF {
                         0xF007 => {
+                            let x = opcode >> 8 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addrdt = (&self.delay).address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addrdt
+                                ; mov al, BYTE [rdx]
+                                ; mov rdx, QWORD addrx
+                                ; mov BYTE [rdx], al
                             );
-                            break 'outer;
                         },
                         0xF00A => {
+                            let x = opcode >> 8 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addr_last_key = (&self.last_key).address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addr_last_key
+                                ; mov BYTE [rdx], 255 as _
+                                ; lbl:
+                                ; cmp BYTE [rdx], 15
+                                ; ja <lbl
+                                ; mov al, BYTE [rdx]
+                                ; mov rdx, QWORD addrx
+                                ; mov BYTE [rdx], al
                             );
-                            break 'outer;
                         },
                         0xF015 => {
+                            let x = opcode >> 8 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addrdt = (&self.delay).address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addrx
+                                ; mov al, BYTE [rdx]
+                                ; mov rdx, QWORD addrdt
+                                ; mov BYTE [rdx], al
                             );
-                            break 'outer;
                         },
                         0xF018 => {
+                            let x = opcode >> 8 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addrsound = (&self.sound).address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addrx
+                                ; mov al, BYTE [rdx]
+                                ; mov rdx, QWORD addrsound
+                                ; mov BYTE [rdx], al
                             );
-                            break 'outer;
                         },
                         0xF01E => {
+                            let x = opcode >> 8 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addri = (&self.I).address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addrx
+                                ; movzx ax, BYTE [rdx]
+                                ; mov rdx, QWORD addri
+                                ; add WORD [rdx], ax
                             );
-                            break 'outer;
                         },
                         0xF029 => {
+                            let x = opcode >> 8 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addri = (&self.I).address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addrx
+                                ; mov al, BYTE [rdx]
+                                ; mov dl, 5
+                                ; mul dl
+                                ; mov rdx, QWORD addri
+                                ; mov WORD [rdx], ax
                             );
-                            break 'outer;
                         },
                         0xF033 => {
+                            let x = opcode >> 8 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addri = (&self.I).address(0) as i64;
+                            let addrmem = self.memory.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addri
+                                ; movzx rdx, WORD [rdx]
+                                ; mov rax, QWORD addrmem
+                                ; add rdx, rax
+                                ; mov rax, QWORD addrx
+                                ; movzx ax, BYTE [rax]
+                                ; mov cl, 100
+                                ; div cl
+                                ; mov BYTE [rdx], al
+                                ; movzx ax, ah
+                                ; mov cl, 10
+                                ; div cl
+                                ; mov BYTE [rdx + 1], al
+                                ; mov BYTE [rdx + 2], ah
                             );
-                            break 'outer;
                         },
                         0xF055 => {
+                            let x = opcode >> 8 & 0xF;
+                            let addr0 = self.V.address(0) as i64;
+                            let addrlast = self.V.address(x as isize) as i64;
+                            let addri = (&self.I).address(0) as i64;
+                            let addrmem = self.memory.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addri
+                                ; movzx rdx, WORD [rdx]
+                                ; mov rax, QWORD addrmem
+                                ; add rdx, rax
+                                ; mov rax, QWORD addr0
+                                ; lbl:
+                                ; mov cl, BYTE [rax]
+                                ; mov BYTE [rdx], cl
+                                ; mov rcx, QWORD addrlast
+                                ; cmp rax, rcx
+                                ; jae >end
+                                ; inc rax
+                                ; inc rdx
+                                ; jmp <lbl
+                                ; end:
                             );
-                            break 'outer;
                         },
                         0xF065 => {
+                            let x = opcode >> 8 & 0xF;
+                            let addr0 = self.V.address(0) as i64;
+                            let addrlast = self.V.address(x as isize) as i64;
+                            let addri = (&self.I).address(0) as i64;
+                            let addrmem = self.memory.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addri
+                                ; movzx rdx, WORD [rdx]
+                                ; mov rax, QWORD addrmem
+                                ; add rdx, rax
+                                ; mov rax, QWORD addr0
+                                ; lbl:
+                                ; mov cl, BYTE [rdx]
+                                ; mov BYTE [rax], cl
+                                ; mov rcx, QWORD addrlast
+                                ; cmp rax, rcx
+                                ; jae >end
+                                ; inc rax
+                                ; inc rdx
+                                ; jmp <lbl
+                                ; end:
                             );
-                            break 'outer;
                         },
                         _ => panic!("Unknown opcode {}", opcode),
                     }

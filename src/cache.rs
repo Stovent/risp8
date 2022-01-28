@@ -29,12 +29,14 @@ impl Cache {
         dynasm!(caller
             ; .arch x64
             ; push rdx
+            ; push rcx
             ; push rax
             ; mov rax, QWORD func as _
             ; call rax
             ; mov rdx, QWORD &mut ret as *mut u32 as _
             ; mov DWORD [rdx], eax
             ; pop rax
+            ; pop rcx
             ; pop rdx
             ; ret
         );
