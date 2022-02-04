@@ -6,14 +6,13 @@ mod interpreter;
 #[cfg(target_arch = "x86_64")]
 mod jit;
 mod opcode;
-mod utils;
 
 #[cfg(target_arch = "x86_64")]
 use cache::Caches;
 
 use std::fs::File;
 use std::io::Read;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// Chip8 context.
 pub struct Chip8 {
@@ -133,5 +132,30 @@ impl Chip8 {
                 }
             }
         }
+    }
+}
+
+pub(crate) extern "win64" fn timer(this: &mut Chip8) {
+    if this.timer.elapsed() >= Duration::from_micros(16666) {
+        if this.delay > 0 {
+            this.delay -= 1;
+        }
+
+        if this.sound > 0 {
+            // TODO: play sound
+            this.sound -= 1;
+        }
+
+        this.timer = Instant::now();
+    }
+}
+
+trait Address {
+    fn address(&self, offset: usize) -> usize;
+}
+
+impl<T> Address for T {
+    fn address(&self, offset: usize) -> usize {
+        self as *const T as usize + offset
     }
 }
