@@ -1,22 +1,18 @@
-use crate::Address;
-
 use dynasmrt::{dynasm, DynasmApi, x64::Assembler, AssemblyOffset, mmap::ExecutableBuffer};
 
 pub struct Cache {
     pub pc: u16,
-    _called_buf: ExecutableBuffer,
-    caller_buf: ExecutableBuffer,
-    caller: fn(),
+    _called_buf: ExecutableBuffer, // Store it so its memory isn't freed.
+    caller_buf: ExecutableBuffer, // Store it so its memory isn't freed.
+    caller: extern "win64" fn(&mut u32),
 }
-
-static mut RET: u32 = 0;
 
 impl Cache {
     pub fn new(pc: u16, called_buf: ExecutableBuffer) -> Self {
         let mut caller_buf = Assembler::new().expect("Failed to create new assembler");
         let called = called_buf.ptr(AssemblyOffset(0));
 
-        fn dummy() {}
+        extern "win64" fn dummy(_: &mut u32) {}
         let mut cache = Self {
             pc,
             _called_buf: called_buf,
@@ -26,30 +22,27 @@ impl Cache {
 
         #[cfg(debug_assertions)] println!("New cache at {:#X} (size {}, {:?})", pc, cache._called_buf.size(), called);
 
-        // Saves the caller-saved registers RAX and RDX.
+        // Saves the caller-saved registers RAX, RCX and RDX.
         // Call the cached code.
         // Move the return value to the `ret` variable.
         // Restore the registers and lend control back to the function.
-        unsafe {
-            dynasm!(caller_buf
-                ; .arch x64
-                ; push rdx
-                ; push rcx
-                ; push rax
-                ; mov rax, QWORD called as i64
-                ; call rax
-                ; mov rdx, QWORD RET.address(0) as i64
-                ; mov DWORD [rdx], eax
-                ; pop rax
-                ; pop rcx
-                ; pop rdx
-                ; ret
-            );
-        }
+        dynasm!(caller_buf
+            ; .arch x64
+            ; push rax
+            ; push rcx
+            ; push rdx
+            ; mov rax, QWORD called as i64
+            ; call rax
+            ; pop rdx
+            ; pop rcx
+            ; mov DWORD [rcx], eax
+            ; pop rax
+            ; ret
+        );
 
         cache.caller_buf = caller_buf.finalize().unwrap();
         unsafe {
-            cache.caller = std::mem::transmute::<*const u8, fn()>(cache.caller_buf.ptr(AssemblyOffset(0)))
+            cache.caller = std::mem::transmute::<*const u8, extern "win64" fn(&mut u32)>(cache.caller_buf.ptr(AssemblyOffset(0)))
         }
 
         cache
@@ -57,9 +50,10 @@ impl Cache {
 
     pub fn run(&mut self) -> u32 {
         #[cfg(debug_assertions)] println!("Executing cache at {:#X}", self.pc);
-        (self.caller)();
-        #[cfg(debug_assertions)] println!("Cache execution returned with value {:#X}", unsafe { RET });
-        unsafe { RET }
+        let mut ret = 0;
+        (self.caller)(&mut ret);
+        #[cfg(debug_assertions)] println!("Cache execution returned with value {:#X}", ret);
+        ret
     }
 }
 
