@@ -135,7 +135,24 @@ impl Chip8 {
     }
 }
 
+#[cfg(target_os = "windows")]
 pub(crate) extern "win64" fn timer(this: &mut Chip8) {
+    if this.timer.elapsed() >= Duration::from_micros(16666) {
+        if this.delay > 0 {
+            this.delay -= 1;
+        }
+
+        if this.sound > 0 {
+            // TODO: play sound
+            this.sound -= 1;
+        }
+
+        this.timer = Instant::now();
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(crate) extern "sysv64" fn timer(this: &mut Chip8) {
     if this.timer.elapsed() >= Duration::from_micros(16666) {
         if this.delay > 0 {
             this.delay -= 1;
