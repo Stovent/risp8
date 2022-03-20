@@ -69,10 +69,7 @@ impl Chip8 {
         };
 
         match input.read(&mut self.memory[512..4096]) {
-            Ok(size) => {
-                println!("Successfully opened ROM \"{}\" (size: {} bytes)", filename, size);
-                Ok(size)
-            }
+            Ok(size) => Ok(size),
             Err(e) => Err(format!("Could not read from ROM: {}", e)),
         }
     }
