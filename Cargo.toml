@@ -2,11 +2,12 @@
 name = "risp8"
 version = "0.1.0"
 authors = ["Stovent <StoventTAS@gmail.com>"]
+edition = "2021"
+license = "LGPL-3.0-or-later"
 description = "A Chip8 interpreter and JIT compiler in Rust, with both a library and an executable."
 repository = "https://github.com/Stovent/risp8"
 keywords = ["chip8", "emulator", "interpreter", "jit"]
 categories = ["compilers", "emulators"]
-edition = "2021"
 
 [profile.dev]
 overflow-checks = false
