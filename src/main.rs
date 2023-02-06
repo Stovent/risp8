@@ -71,7 +71,7 @@ fn main() {
             },
             Event::MainEventsCleared => {
                 unsafe {
-                    draw(&(*chip8_gui.0.get()).screen, pixels.get_frame());
+                    draw(&(*chip8_gui.0.get()).screen, pixels.get_frame_mut());
                     pixels.render().unwrap();
                 }
             },
