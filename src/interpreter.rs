@@ -1,4 +1,4 @@
-use crate::{Chip8, timer};
+use crate::Chip8;
 use crate::opcode::Opcode;
 
 use rand::Rng;
@@ -200,6 +200,6 @@ impl Chip8 {
             _ => panic!("Unknown opcode {:04X}", opcode),
         };
 
-        timer(self);
+        self.handle_timers();
     }
 }

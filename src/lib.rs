@@ -130,38 +130,31 @@ impl Chip8 {
             }
         }
     }
+
+    fn handle_timers(&mut self) {
+        if self.timer.elapsed() >= Duration::from_micros(16666) {
+            if self.delay > 0 {
+                self.delay -= 1;
+            }
+
+            if self.sound > 0 {
+                // TODO: play sound
+                self.sound -= 1;
+            }
+
+            self.timer = Instant::now();
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
-pub(crate) extern "win64" fn timer(this: &mut Chip8) {
-    if this.timer.elapsed() >= Duration::from_micros(16666) {
-        if this.delay > 0 {
-            this.delay -= 1;
-        }
-
-        if this.sound > 0 {
-            // TODO: play sound
-            this.sound -= 1;
-        }
-
-        this.timer = Instant::now();
-    }
+pub(crate) extern "win64" fn handle_timers(this: &mut Chip8) {
+    this.handle_timers();
 }
 
 #[cfg(not(target_os = "windows"))]
-pub(crate) extern "sysv64" fn timer(this: &mut Chip8) {
-    if this.timer.elapsed() >= Duration::from_micros(16666) {
-        if this.delay > 0 {
-            this.delay -= 1;
-        }
-
-        if this.sound > 0 {
-            // TODO: play sound
-            this.sound -= 1;
-        }
-
-        this.timer = Instant::now();
-    }
+pub(crate) extern "sysv64" fn handle_timers(this: &mut Chip8) {
+    this.handle_timers();
 }
 
 trait Address {

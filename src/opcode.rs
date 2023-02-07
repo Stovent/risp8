@@ -1,37 +1,45 @@
-#[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct Opcode(u16);
 
 impl Opcode {
-    pub fn u16(self) -> u16 {
+    #[inline(always)]
+    pub const fn u16(self) -> u16 {
         self.0
     }
 
-    pub fn x(self) -> usize {
+    #[inline(always)]
+    pub const fn x(self) -> usize {
         self.0 as usize >> 8 & 0xF
     }
 
-    fn y(self) -> usize {
+    #[inline(always)]
+    const fn y(self) -> usize {
         self.0 as usize >> 4 & 0xF
     }
 
-    pub fn xy(self) -> (usize, usize) {
+    #[inline(always)]
+    pub const fn xy(self) -> (usize, usize) {
         (self.x(), self.y())
     }
 
-    fn kk(self) -> u8 {
+    #[inline(always)]
+    const fn kk(self) -> u8 {
         self.0 as u8
     }
 
-    pub fn xkk(self) -> (usize, u8) {
+    #[inline(always)]
+    pub const fn xkk(self) -> (usize, u8) {
         (self.x(), self.kk())
     }
 
-    pub fn n(self) -> u8 {
+    #[inline(always)]
+    pub const fn n(self) -> u8 {
         self.0 as u8 & 0xF
     }
 
-    pub fn nnn(self) -> u16 {
+    #[inline(always)]
+    pub const fn nnn(self) -> u16 {
         self.0 & 0xFFF
     }
 }

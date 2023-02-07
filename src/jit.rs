@@ -1,4 +1,4 @@
-use crate::{Chip8, timer};
+use crate::{Chip8, handle_timers};
 use crate::opcode::Opcode;
 use crate::Address;
 
@@ -52,7 +52,7 @@ impl Chip8 {
         let block_pc = pc;
         let mut asm = Assembler::new().expect("Failed to create new assembler");
 
-        let timer = timer as *const ();
+        let timer = handle_timers as *const ();
         let this = self as *mut Chip8;
 
         #[cfg(target_os = "windows")]
