@@ -13,7 +13,8 @@ categories = ["compilers", "emulators"]
 overflow-checks = false
 
 [dependencies]
-rand = "0.7.0"
 dynasmrt = "2.0.0"
-winit = "0.28.1"
+kanal = "0.1.0-pre8"
 pixels = "0.11.0"
+rand = "0.7.0"
+winit = "0.28.1"

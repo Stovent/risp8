@@ -158,7 +158,9 @@ impl Chip8 {
                 0xF00A => {
                     let x = opcode.x();
                     self.last_key = 255;
-                    while self.last_key > 15 {}
+                    while self.last_key > 15 {
+                        self.handle_channels();
+                    }
                     self.V[x] = self.last_key;
                 },
                 0xF015 => {
