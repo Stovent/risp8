@@ -1,4 +1,4 @@
-use crate::{Chip8, handle_timers};
+use crate::{Chip8, handle_timers, wait_key};
 use crate::opcode::Opcode;
 use crate::Address;
 
@@ -79,8 +79,8 @@ impl Chip8 {
             #[cfg(debug_assertions)]
             println!("Compiling opcode {:#04X} at {:#X}", opcode, pc);
 
-            match opcode.u16() >> 12 & 0xF {
-                0x0 => match opcode.u16() {
+            match opcode.0 >> 12 & 0xF {
+                0x0 => match opcode.0 {
                     0x00E0 => {
                         let addr_screen = self.screen.address(0) as i64;
                         dynasm!(asm
@@ -211,7 +211,7 @@ impl Chip8 {
                     );
                 },
                 0x8 => {
-                    match opcode.u16() & 0xF00F {
+                    match opcode.0 & 0xF00F {
                         0x8000 => {
                             let (x, y) = opcode.xy();
                             let addrx = self.V.address(x) as i64;
@@ -390,7 +390,7 @@ impl Chip8 {
                     break 'outer;
                 },
                 0xE => {
-                    match opcode.u16() & 0xF0FF {
+                    match opcode.0 & 0xF0FF {
                         0xE09E => {
                             let x = opcode.x();
                             let addrx = self.V.address(x) as i64;
@@ -431,7 +431,7 @@ impl Chip8 {
                     }
                 },
                 0xF => {
-                    match opcode.u16() & 0xF0FF {
+                    match opcode.0 & 0xF0FF {
                         0xF007 => {
                             let x = opcode.x();
                             let addrx = self.V.address(x) as i64;
@@ -445,19 +445,30 @@ impl Chip8 {
                             );
                         },
                         0xF00A => {
+                            let wait = wait_key as *const ();
+                            let this = self as *mut Chip8;
                             let x = opcode.x();
-                            let addrx = self.V.address(x) as i64;
-                            let addr_last_key = self.last_key.address(0) as i64;
+
+                            #[cfg(target_os = "windows")]
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov rdx, QWORD addr_last_key
-                                ; mov BYTE [rdx], 255 as _
-                                ; lbl:
-                                ; cmp BYTE [rdx], 15
-                                ; ja <lbl
-                                ; mov al, BYTE [rdx]
-                                ; mov rdx, QWORD addrx
-                                ; mov BYTE [rdx], al
+                                ; mov rax, QWORD wait as i64
+                                ; mov rcx, QWORD this as i64
+                                ; mov rdx, QWORD x as i64
+                                ; call rax
+                            );
+
+                            #[cfg(not(target_os = "windows"))]
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov rax, QWORD wait as i64
+                                ; push rdi
+                                ; mov rdi, QWORD this as i64
+                                ; push rsi
+                                ; mov rsi, QWORD x as i64
+                                ; call rax
+                                ; pop rsi
+                                ; pop rdi
                             );
                         },
                         0xF015 => {
