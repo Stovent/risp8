@@ -1,4 +1,4 @@
-use crate::{Chip8, handle_timers, wait_key};
+use crate::Chip8;
 use crate::opcode::Opcode;
 use crate::Address;
 
@@ -8,19 +8,29 @@ use dynasmrt::{dynasm, DynasmApi, DynasmLabelApi, x64::Assembler};
 pub enum Interrupts {
     UseInterpreter = 1,
     Jump = 2,
+    InvalidateCache = 3,
 }
 
 impl Interrupts {
-    pub fn make(int: Interrupts, arg: u16) -> u32 {
-        (int as u32) << 16 | arg as u32
+    pub fn use_interpreter(addr: u16) -> i64 {
+        (Self::UseInterpreter as i64) << 16 | addr as i64
+    }
+
+    pub fn jump(addr: u16) -> i64 {
+        (Self::Jump as i64) << 16 | addr as i64
+    }
+
+    pub fn invalidate(next_pc: u16, range_beg: u16, range_end: u16) -> i64 {
+        (range_beg as i64) << 48 | (range_end as i64) << 32 | (Self::InvalidateCache as i64) << 16 | next_pc as i64
     }
 }
 
-impl From<u32> for Interrupts {
-    fn from(i: u32) -> Self {
+impl From<u64> for Interrupts {
+    fn from(i: u64) -> Self {
         match i {
             1 => Self::UseInterpreter,
             2 => Self::Jump,
+            3 => Self::InvalidateCache,
             _ => panic!(),
         }
     }
@@ -34,20 +44,26 @@ impl Chip8 {
         }
 
         let ret = self.caches.get(self.PC).unwrap().run();
-        match Interrupts::from(ret >> 16) {
+        match Interrupts::from(ret >> 16 & 0xFFFF) {
             Interrupts::UseInterpreter => {
                 self.PC = ret as u16;
                 self.interpreter();
             },
             Interrupts::Jump => self.PC = ret as u16,
+            Interrupts::InvalidateCache => {
+                self.PC = ret as u16;
+                let beg_addr = (ret >> 48) as u16;
+                let end_addr = (ret >> 32) as u16;
+
+                self.caches.invalidate(beg_addr, end_addr);
+                self.caches.clear(); // TODO: correctly implement cache invalidation without having to flush it.
+            },
         }
     }
 
-    // TODO: for self-modifying code, store the memory range used by each cache, and when writing to this location,
-    // invalidate the cache with an interrupt, perform the assignment in interpreter, then recompile the block.
     /// Uses the RAX, RCX and RDX (caller-saved) registers.
     ///
-    /// EAX contains the return value of the block. RAX, RCX and RDX are used internally by the compiled code.
+    /// RAX contains the return value of the block. RAX, RCX and RDX are used internally by the compiled code.
     fn compile_block(&mut self, mut pc: u16) {
         let block_pc = pc;
         let mut asm = Assembler::new().expect("Failed to create new assembler");
@@ -103,7 +119,7 @@ impl Chip8 {
                             ; mov rdx, QWORD sp as i64
                             ; cmp QWORD [rdx], 0
                             ; ja >lbl
-                            ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                            ; mov rax, QWORD Interrupts::use_interpreter(pc)
                             ; ret
                             ; lbl:
                             ; dec QWORD [rdx]
@@ -111,7 +127,7 @@ impl Chip8 {
                             ; shl rax, 1
                             ; mov rcx, QWORD stack as i64
                             ; add rcx, rax
-                            ; mov eax, DWORD Interrupts::make(Interrupts::Jump, 0) as i32
+                            ; mov rax, QWORD Interrupts::jump(0)
                             ; mov ax, WORD [rcx]
                         );
                         break 'outer;
@@ -121,7 +137,7 @@ impl Chip8 {
                 0x1 => {
                     dynasm!(asm
                         ; .arch x64
-                        ; mov eax, DWORD Interrupts::make(Interrupts::Jump, opcode.nnn()) as i32
+                        ; mov rax, QWORD Interrupts::jump(opcode.nnn())
                     );
                     break 'outer;
                 },
@@ -135,7 +151,7 @@ impl Chip8 {
                         ; mov rax, QWORD [rdx]
                         ; cmp rax, 15
                         ; jb >lbl
-                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                        ; mov rax, QWORD Interrupts::use_interpreter(pc)
                         ; ret
                         ; lbl:
                         ; shl rax, 1
@@ -143,7 +159,7 @@ impl Chip8 {
                         ; add rcx, rax
                         ; mov WORD [rcx], (pc + 2) as i16
                         ; inc QWORD [rdx]
-                        ; mov eax, DWORD Interrupts::make(Interrupts::Jump, 0) as i32
+                        ; mov rax, QWORD Interrupts::jump(0)
                         ; mov ax, WORD nnn as i16
                     );
                     break 'outer;
@@ -157,7 +173,7 @@ impl Chip8 {
                         ; mov al, BYTE [rdx]
                         ; cmp al, kk as i8
                         ; jne >lbl
-                        ; mov eax, DWORD Interrupts::make(Interrupts::Jump, pc + 4) as i32
+                        ; mov rax, QWORD Interrupts::jump(pc + 4)
                         ; ret
                         ; lbl:
                     );
@@ -171,7 +187,7 @@ impl Chip8 {
                         ; mov al, BYTE [rdx]
                         ; cmp al, kk as i8
                         ; je >lbl
-                        ; mov eax, DWORD Interrupts::make(Interrupts::Jump, pc + 4) as i32
+                        ; mov rax, QWORD Interrupts::jump(pc + 4)
                         ; ret
                         ; lbl:
                     );
@@ -187,7 +203,7 @@ impl Chip8 {
                         ; mov rdx, QWORD addrx
                         ; cmp BYTE [rdx], al
                         ; jne >lbl
-                        ; mov eax, DWORD Interrupts::make(Interrupts::Jump, pc + 4) as i32
+                        ; mov rax, QWORD Interrupts::jump(pc + 4)
                         ; ret
                         ; lbl:
                     );
@@ -349,7 +365,7 @@ impl Chip8 {
                         ; mov rdx, QWORD addrx
                         ; cmp BYTE [rdx], al
                         ; je >lbl
-                        ; mov eax, DWORD Interrupts::make(Interrupts::Jump, pc + 4) as i32
+                        ; mov rax, QWORD Interrupts::jump(pc + 4)
                         ; ret
                         ; lbl:
                     );
@@ -368,24 +384,24 @@ impl Chip8 {
                     let addr0 = self.V.address(0) as i64;
                     dynasm!(asm
                         ; .arch x64
-                        ; mov eax, DWORD Interrupts::make(Interrupts::Jump, nnn) as i32
+                        ; mov rax, QWORD Interrupts::jump(nnn)
                         ; mov rdx, QWORD addr0
-                        ; movzx edx, BYTE [rdx]
-                        ; add eax, edx
+                        ; movzx dx, BYTE [rdx]
+                        ; add ax, dx
                     );
                     break 'outer;
                 },
                 0xC => {
                     dynasm!(asm
                         ; .arch x64
-                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                        ; mov rax, QWORD Interrupts::use_interpreter(pc)
                     );
                     break 'outer;
                 },
                 0xD => {
                     dynasm!(asm
                         ; .arch x64
-                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                        ; mov rax, QWORD Interrupts::use_interpreter(pc)
                     );
                     break 'outer;
                 },
@@ -404,7 +420,7 @@ impl Chip8 {
                                 ; mov al, BYTE [rdx]
                                 ; cmp al, 0
                                 ; je >lbl
-                                ; mov eax, DWORD Interrupts::make(Interrupts::Jump, pc + 4) as i32
+                                ; mov rax, QWORD Interrupts::jump(pc + 4)
                                 ; ret
                                 ; lbl:
                             );
@@ -422,7 +438,7 @@ impl Chip8 {
                                 ; mov al, BYTE [rdx]
                                 ; cmp al, 0
                                 ; jne >lbl
-                                ; mov eax, DWORD Interrupts::make(Interrupts::Jump, pc + 4) as i32
+                                ; mov rax, QWORD Interrupts::jump(pc + 4)
                                 ; ret
                                 ; lbl:
                             );
@@ -445,31 +461,11 @@ impl Chip8 {
                             );
                         },
                         0xF00A => {
-                            let wait = wait_key as *const ();
-                            let this = self as *mut Chip8;
-                            let x = opcode.x();
-
-                            #[cfg(target_os = "windows")]
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov rax, QWORD wait as i64
-                                ; mov rcx, QWORD this as i64
-                                ; mov rdx, QWORD x as i64
-                                ; call rax
+                                ; mov rax, QWORD Interrupts::use_interpreter(pc)
                             );
-
-                            #[cfg(not(target_os = "windows"))]
-                            dynasm!(asm
-                                ; .arch x64
-                                ; mov rax, QWORD wait as i64
-                                ; push rdi
-                                ; mov rdi, QWORD this as i64
-                                ; push rsi
-                                ; mov rsi, QWORD x as i64
-                                ; call rax
-                                ; pop rsi
-                                ; pop rdi
-                            );
+                            break 'outer;
                         },
                         0xF015 => {
                             let x = opcode.x();
@@ -550,6 +546,8 @@ impl Chip8 {
                             let addrlast = self.V.address(x) as i64;
                             let addri = self.I.address(0) as i64;
                             let addrmem = self.memory.address(0) as i64;
+                            let int_invalidate = Interrupts::invalidate as *const ();
+
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addri
@@ -568,6 +566,37 @@ impl Chip8 {
                                 ; jmp <lbl
                                 ; end:
                             );
+
+                            #[cfg(target_os = "windows")]
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov rcx, QWORD pc as i64 // Load current PC in rcx.
+                                ; add rcx, 2 // Add 2 for next PC.
+                                ; mov rdx, QWORD addri
+                                ; movzx rdx, WORD [rdx] // Load begin address I in rdx.
+                                ; mov r8, rdx
+                                ; add r8, x as i32 // Load end address in r8.
+                                ; mov rax, QWORD int_invalidate as i64
+                                ; call rax
+                            );
+
+                            #[cfg(not(target_os = "windows"))]
+                            dynasm!(asm
+                                ; .arch x64
+                                ; push rdi
+                                ; push rsi
+                                ; mov rdi, QWORD pc as i64 // Load current PC in rdi.
+                                ; add rdi, 2 // Add 2 for next PC.
+                                ; mov rsi, QWORD addri
+                                ; movzx rsi, WORD [rsi] // Load begin address I in rsi.
+                                ; mov rdx, rsi
+                                ; add rdx, x as i32 // Load end address in rdx.
+                                ; mov rax, QWORD int_invalidate as i64
+                                ; call rax
+                                ; pop rsi
+                                ; pop rdi
+                            );
+                            break 'outer;
                         },
                         0xF065 => {
                             let x = opcode.x();
@@ -608,6 +637,16 @@ impl Chip8 {
             ; ret
         );
 
-        self.caches.add(block_pc, asm.finalize().unwrap());
+        self.caches.add(block_pc, pc, asm.finalize().unwrap());
     }
+}
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+extern "win64" fn handle_timers(this: &mut Chip8) {
+    this.handle_timers();
+}
+
+#[cfg(all(not(target_os = "windows"), target_arch = "x86_64"))]
+extern "sysv64" fn handle_timers(this: &mut Chip8) {
+    this.handle_timers();
 }

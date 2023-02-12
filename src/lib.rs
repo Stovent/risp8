@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+#![feature(drain_filter)]
 
 use kanal::{Receiver, Sender, unbounded};
 
@@ -112,7 +113,7 @@ impl Chip8 {
 
             match cmd {
                 Risp8Command::SetKey(key, pressed) => self.set_key(key, pressed),
-                Risp8Command::GetScreen => self.channel_out.send(Risp8Answer::Screen(self.screen)).unwrap(),
+                Risp8Command::GetScreen => { let _ = self.channel_out.send(Risp8Answer::Screen(self.screen)); },
                 Risp8Command::Play => self.play = true,
                 Risp8Command::Pause => self.play = false,
                 Risp8Command::SetExecutionMethod(method) => self.execution_method = method,
@@ -232,26 +233,6 @@ impl Chip8 {
     }
 }
 
-#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-extern "win64" fn wait_key(this: &mut Chip8, x: usize) {
-    this.wait_key(x);
-}
-
-#[cfg(all(not(target_os = "windows"), target_arch = "x86_64"))]
-extern "sysv64" fn wait_key(this: &mut Chip8, x: usize) {
-    this.wait_key(x);
-}
-
-#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-extern "win64" fn handle_timers(this: &mut Chip8) {
-    this.handle_timers();
-}
-
-#[cfg(all(not(target_os = "windows"), target_arch = "x86_64"))]
-extern "sysv64" fn handle_timers(this: &mut Chip8) {
-    this.handle_timers();
-}
-
 trait Address {
     fn address(&self, offset: usize) -> usize;
 }
@@ -296,7 +277,7 @@ pub enum Risp8Answer {
     Screen([[bool; 64]; 32]),
     /// Indicates that the sound should start to be continuously emited.
     ///
-    /// This is emitted 60 times per seconds.
+    /// This is emitted 60 times per seconds for as long as a sound should be emitted.
     PlaySound,
     /// Indicates that the sound should stop.
     StopSound,
