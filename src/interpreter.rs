@@ -7,7 +7,7 @@ impl Chip8 {
     /// Executes a single instruction using the interpreter.
     pub fn interpreter(&mut self) {
         let opcode = Opcode((self.memory[self.PC as usize] as u16) << 8 | self.memory[self.PC as usize + 1] as u16);
-        // #[cfg(debug_assertions)] println!("opcode {:04X} at {:#X}", opcode, self.PC);
+        // #[cfg(debug_assertions)] println!("opcode {opcode:04X} at {:#X}", self.PC);
         self.PC += 2;
 
         match opcode.0 >> 12 & 0xF {
@@ -21,7 +21,7 @@ impl Chip8 {
                         println!("Stack underflow (RET 0x00EE)");
                     }
                 },
-                _ => panic!("Unknown opcode {:04X}", opcode),
+                _ => panic!("Unknown opcode {opcode:04X}"),
             },
             0x1 => self.PC = opcode.nnn(),
             0x2 => {
@@ -109,7 +109,7 @@ impl Chip8 {
                         self.V[x] <<= 1;
                         self.V[0xF] = c;
                     },
-                    _ => panic!("Unknown opcode {:04X}", opcode),
+                    _ => panic!("Unknown opcode {opcode:04X}"),
                 }
             },
             0x9 => {
@@ -142,7 +142,7 @@ impl Chip8 {
                         self.PC += 2;
                     }
                 },
-                _ => panic!("Unknown opcode {:04X}", opcode),
+                _ => panic!("Unknown opcode {opcode:04X}"),
             },
             0xF => match opcode.0 & 0xF0FF {
                 0xF007 => {
@@ -187,9 +187,9 @@ impl Chip8 {
                         self.V[i] = self.memory[self.I as usize + i];
                     }
                 },
-                _ => panic!("Unknown opcode {:04X}", opcode),
+                _ => panic!("Unknown opcode {opcode:04X}"),
             },
-            _ => panic!("Unknown opcode {:04X}", opcode),
+            _ => panic!("Unknown opcode {opcode:04X}"),
         };
 
         self.handle_timers();

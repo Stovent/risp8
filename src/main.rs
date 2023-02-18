@@ -129,6 +129,7 @@ fn handle_keyboard(key: &KeyboardInput, ctx: &mut ExecutionContext) {
             VirtualKeyCode::NumpadMultiply => { ctx.send.send(Risp8Command::SetKey(0xB, key.state == ElementState::Pressed)).unwrap() },
             VirtualKeyCode::NumpadSubtract => { ctx.send.send(Risp8Command::SetKey(0xC, key.state == ElementState::Pressed)).unwrap() },
             VirtualKeyCode::NumpadAdd      => { ctx.send.send(Risp8Command::SetKey(0xD, key.state == ElementState::Pressed)).unwrap() },
+            VirtualKeyCode::NumpadEnter    => { ctx.send.send(Risp8Command::SetKey(0xE, key.state == ElementState::Pressed)).unwrap() },
             VirtualKeyCode::Return         => { ctx.send.send(Risp8Command::SetKey(0xE, key.state == ElementState::Pressed)).unwrap() },
             VirtualKeyCode::NumpadDecimal  => { ctx.send.send(Risp8Command::SetKey(0xF, key.state == ElementState::Pressed)).unwrap() },
             VirtualKeyCode::I => {
