@@ -561,7 +561,7 @@ impl Chip8 {
                                 ; .arch x64
                                 ; push rdi
                                 ; push rsi
-                                ; mov rdi, QWORD pc as i64 // Load current PC in rdi.
+                                ; mov rdi, QWORD current_pc as i64 // Load current PC in rdi.
                                 ; add rdi, 2 // Add 2 for next PC.
                                 ; mov rsi, QWORD addri
                                 ; movzx rsi, WORD [rsi] // Load begin address I in rsi.
@@ -619,7 +619,7 @@ impl Chip8 {
                                 ; .arch x64
                                 ; push rdi
                                 ; push rsi
-                                ; mov rdi, QWORD pc as i64 // Load current PC in rdi.
+                                ; mov rdi, QWORD current_pc as i64 // Load current PC in rdi.
                                 ; add rdi, 2 // Add 2 for next PC.
                                 ; mov rsi, QWORD addri
                                 ; movzx rsi, WORD [rsi] // Load begin address I in rsi.
