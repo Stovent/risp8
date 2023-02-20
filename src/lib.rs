@@ -1,10 +1,12 @@
-#![allow(non_snake_case)]
+//! Experimental Chip8 interpreter, cached interpreter and Just-In-Time compiler.
+
 #![feature(drain_filter)]
 
 use kanal::{Receiver, Sender, unbounded};
 
 #[cfg(target_arch = "x86_64")]
 mod cache;
+mod cached_interpreter;
 mod interpreter;
 #[cfg(target_arch = "x86_64")]
 mod jit;
@@ -13,12 +15,15 @@ mod opcode;
 #[cfg(target_arch = "x86_64")]
 use cache::Caches;
 
+use cached_interpreter::InstructionCache;
+
 use std::fs::File;
 use std::io::Read;
 use std::time::{Duration, Instant};
 
-/// Chip8 context.
-pub struct Chip8 {
+#[allow(non_snake_case)]
+#[derive(Clone, Copy, Debug)]
+struct State {
     SP: usize,
     PC: u16,
     I: u16,
@@ -36,28 +41,13 @@ pub struct Chip8 {
     ///
     /// If Some(<= 0xF), the awaited key has been pressed and instruction execution will resume on the next loop.
     wait_key: Option<u8>,
-    timer: Instant,
-
-    channel_in: Receiver<Risp8Command>,
-    channel_out: Sender<Risp8Answer>,
-    play: bool,
-    execution_method: ExecutionMethod,
-
-    #[cfg(target_arch = "x86_64")]
-    caches: Caches,
 }
 
-impl Chip8 {
-    /// Creates a new Chip8 context.
-    ///
-    /// `rom` is the path to the ROM to open.
-    pub fn new(rom: &str) -> Result<(Self, Sender<Risp8Command>, Receiver<Risp8Answer>), String> {
-        let (channel_out, user_in) = unbounded();
-        let (user_out, channel_in) = unbounded();
-
-        let mut core = Chip8 {
+impl State {
+    fn new() -> Self {
+        let mut state = Self {
             SP: 0,
-            PC: 512,
+            PC: Chip8::INITIAL_PC,
             I: 0,
             stack: [0; 16],
             V: [0; 16],
@@ -68,72 +58,10 @@ impl Chip8 {
             keys: [false; 16],
 
             wait_key: None,
-            timer: Instant::now(),
-
-            channel_in,
-            channel_out,
-            play: false,
-            execution_method: ExecutionMethod::Interpreter,
-
-            #[cfg(target_arch = "x86_64")]
-            caches: Caches::new(),
         };
+        state.load_font();
 
-        core.load_font();
-        core.load_rom(rom)?;
-
-        Ok((core, user_out, user_in))
-    }
-
-    /// The method to call to start emulation.
-    ///
-    /// This method is meant to run concurrently with the rest of the program (GUI, ...).
-    /// Use the channels to send commands to control the core and receive answers from it.
-    pub fn run(&mut self) {
-        loop {
-            if self.handle_channels() {
-                break;
-            }
-
-            if self.play {
-                match self.execution_method {
-                    ExecutionMethod::Interpreter => self.interpreter(),
-                    ExecutionMethod::Jit => self.jit(),
-                }
-            }
-        }
-    }
-
-    /// Returns true if the emulator has to be stopped.
-    fn handle_channels(&mut self) -> bool {
-        while !self.channel_in.is_empty() {
-            let Ok(cmd) = self.channel_in.recv() else {
-                return true;
-            };
-
-            match cmd {
-                Risp8Command::SetKey(key, pressed) => self.set_key(key, pressed),
-                Risp8Command::GetScreen => { let _ = self.channel_out.send(Risp8Answer::Screen(self.screen)); },
-                Risp8Command::Play => self.play = true,
-                Risp8Command::Pause => self.play = false,
-                Risp8Command::SetExecutionMethod(method) => self.execution_method = method,
-                Risp8Command::Exit => return true,
-            }
-        }
-
-        false
-    }
-
-    fn load_rom(&mut self, filename: &str) -> Result<usize, String> {
-        let mut input = match File::open(filename) {
-            Ok(f) => f,
-            Err(e) => return Err(format!("Could not open ROM: {}", e)),
-        };
-
-        match input.read(&mut self.memory[512..4096]) {
-            Ok(size) => Ok(size),
-            Err(e) => Err(format!("Could not read from ROM: {}", e)),
-        }
+        state
     }
 
     fn load_font(&mut self) {
@@ -155,39 +83,6 @@ impl Chip8 {
             0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
             0xF0, 0x80, 0xF0, 0x80, 0x80, // F
         ]);
-    }
-
-    /// Sets a key as pressed or unpressed.
-    ///
-    /// `key` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
-    /// `pressed` = true if pressed, false if released.
-    fn set_key(&mut self, key: usize, pressed: bool) {
-        if key <= 0xF {
-            if self.keys[key] && !pressed { // Key pressed then released.
-                match self.wait_key {
-                    Some(16..=u8::MAX) => self.wait_key = Some(key as u8),
-                    _ => (),
-                }
-            }
-            self.keys[key] = pressed;
-        }
-    }
-
-    fn wait_key(&mut self, x: usize) {
-        match self.wait_key {
-            Some(key) => if key <= 0xF {
-                // If key is valid, store the key in the given register.
-                self.V[x] = self.wait_key.take().unwrap();
-            } else {
-                // If it is still waiting for a key, decrement PC to make it loop over this instruction.
-                self.PC -= 2;
-            },
-            None => {
-                // First execution of the instruction, set it to waiting.
-                self.wait_key = Some(255);
-                self.PC -= 2;
-            },
-        }
     }
 
     fn clear_screen(&mut self) {
@@ -215,14 +110,155 @@ impl Chip8 {
         }
     }
 
-    fn handle_timers(&mut self) {
-        if self.timer.elapsed() >= Duration::from_micros(16666) {
-            if self.delay > 0 {
-                self.delay -= 1;
+    /// Sets a key as pressed or unpressed.
+    ///
+    /// `key` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
+    /// `pressed` = true if pressed, false if released.
+    fn set_key(&mut self, key: usize, pressed: bool) {
+        if key <= 0xF {
+            if self.keys[key] && !pressed { // Key pressed then released.
+                match self.wait_key {
+                    Some(16..=u8::MAX) => self.wait_key = Some(key as u8),
+                    _ => (),
+                }
+            }
+            self.keys[key] = pressed;
+        }
+    }
+
+    /// Returns true if wait is over, false if it should continue to wait.
+    fn wait_key(&mut self, x: usize) -> bool {
+        match self.wait_key {
+            Some(_key@0..=0xF) => {
+                // If key is valid, store the key in the given register.
+                self.V[x] = self.wait_key.take().unwrap();
+                true
+            },
+            _ => {
+                // Set to waiting.
+                self.wait_key = Some(255);
+                false
+            },
+        }
+    }
+}
+
+/// Chip8 core.
+pub struct Chip8 {
+    state: State,
+
+    timer: Instant,
+
+    channel_in: Receiver<Risp8Command>,
+    channel_out: Sender<Risp8Answer>,
+    play: bool,
+    execution_method: ExecutionMethod,
+
+    interpreter_caches: Box<[Option<InstructionCache>]>,
+
+    #[cfg(target_arch = "x86_64")]
+    caches: Caches,
+}
+
+impl Chip8 {
+    const INITIAL_PC: u16 = 0x200; // 512.
+    const MEMORY_END: u16 = 0x1000; // 4096.
+    const INTERPRETER_CACHES_LEN: usize = (Self::MEMORY_END - Self::INITIAL_PC) as usize;
+    const EMPTY_INTERPRETER_CACHES: Option<InstructionCache> = None;
+
+    /// Creates a new Chip8 context.
+    ///
+    /// `rom` is the path to the ROM to open.
+    pub fn new(rom: &str) -> Result<(Self, Sender<Risp8Command>, Receiver<Risp8Answer>), String> {
+        let (channel_out, user_in) = unbounded();
+        let (user_out, channel_in) = unbounded();
+
+        let mut core = Chip8 {
+            state: State::new(),
+
+            timer: Instant::now(),
+
+            channel_in,
+            channel_out,
+            play: false,
+            execution_method: ExecutionMethod::Interpreter,
+
+            interpreter_caches: vec![Self::EMPTY_INTERPRETER_CACHES; Self::INTERPRETER_CACHES_LEN].into_boxed_slice(),
+
+            #[cfg(target_arch = "x86_64")]
+            caches: Caches::new(),
+        };
+
+        core.load_rom(rom)?;
+
+        Ok((core, user_out, user_in))
+    }
+
+    /// The method to call to start emulation.
+    ///
+    /// This method is meant to run concurrently with the rest of the program (GUI, ...).
+    /// Use the channels to send commands to control the core and receive answers from it.
+    pub fn run(&mut self) {
+        loop {
+            if self.handle_channels() {
+                break;
             }
 
-            if self.sound > 0 {
-                self.sound -= 1;
+            if self.play {
+                self.single_step();
+            }
+        }
+    }
+
+    fn single_step(&mut self) {
+        match self.execution_method {
+            ExecutionMethod::Interpreter => self.interpreter(),
+            ExecutionMethod::CachedInterpreter => self.cached_interpreter(),
+            ExecutionMethod::Jit => self.jit(),
+        }
+    }
+
+    /// Returns true if the emulator has to be stopped.
+    fn handle_channels(&mut self) -> bool {
+        while !self.channel_in.is_empty() {
+            let Ok(cmd) = self.channel_in.recv() else {
+                return true;
+            };
+
+            match cmd {
+                Risp8Command::SetKey(key, pressed) => self.state.set_key(key, pressed),
+                Risp8Command::GetScreen => { let _ = self.channel_out.send(Risp8Answer::Screen(self.state.screen)); },
+                Risp8Command::Play => self.play = true,
+                Risp8Command::Pause => self.play = false,
+                Risp8Command::SingleStep => self.single_step(),
+                Risp8Command::SetExecutionMethod(method) => self.execution_method = method,
+                Risp8Command::Exit => return true,
+            }
+        }
+
+        false
+    }
+
+    fn load_rom(&mut self, filename: &str) -> Result<usize, String> {
+        let mut input = match File::open(filename) {
+            Ok(f) => f,
+            Err(e) => return Err(format!("Could not open ROM: {}", e)),
+        };
+
+        match input.read(&mut self.state.memory[Self::INITIAL_PC as usize..Self::MEMORY_END as usize]) {
+            Ok(size) => Ok(size),
+            Err(e) => Err(format!("Could not read from ROM: {}", e)),
+        }
+    }
+
+    fn handle_timers(&mut self) {
+        if self.timer.elapsed() >= Duration::from_micros(16666) {
+            if self.state.delay > 0 {
+                self.state.delay -= 1;
+            }
+
+            if self.state.sound > 0 {
+                self.state.sound -= 1;
                 let _ = self.channel_out.send(Risp8Answer::PlaySound);
             } else {
                 let _ = self.channel_out.send(Risp8Answer::StopSound);
@@ -257,6 +293,8 @@ pub enum Risp8Command {
     Play,
     /// Pause emulation.
     Pause,
+    /// Runs only once the execution method.
+    SingleStep,
     /// Set the execution method.
     SetExecutionMethod(ExecutionMethod),
     /// Request to end the [run](Chip8::run) method.
@@ -267,6 +305,7 @@ pub enum Risp8Command {
 #[derive(Debug)]
 pub enum ExecutionMethod {
     Interpreter,
+    CachedInterpreter,
     Jit,
 }
 

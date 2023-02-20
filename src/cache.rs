@@ -1,7 +1,7 @@
 use dynasmrt::{dynasm, DynasmApi, x64::Assembler, AssemblyOffset, mmap::ExecutableBuffer};
 
 pub struct Cache {
-    pub pc: u16,
+    pc: u16,
     /// The address of the instruction following the last instruction in this cache [pc, end_pc).
     end_pc: u16,
     _called_buf: ExecutableBuffer, // Store it so its memory isn't freed.
@@ -14,7 +14,7 @@ impl Cache {
         let mut caller_asm = Assembler::new().expect("Failed to create new assembler");
         let called = called_buf.ptr(AssemblyOffset(0));
 
-        #[cfg(debug_assertions)] println!("New cache at {pc:#X} (end {end_pc:#X}, {called:?})");
+        // #[cfg(debug_assertions)] println!("New cache at {pc:#X} (end {end_pc:#X}, {called:?})");
 
         dynasm!(caller_asm
             ; .arch x64
@@ -45,10 +45,10 @@ impl Cache {
     }
 
     pub fn run(&self) -> u64 {
-        #[cfg(debug_assertions)] println!("Executing cache at {:#X}", self.pc);
+        // #[cfg(debug_assertions)] println!("Executing cache at {:#X}", self.pc);
         let mut ret = 0;
         (self.caller)(&mut ret);
-        #[cfg(debug_assertions)] println!("Cache execution returned with value {:#X}", ret);
+        // #[cfg(debug_assertions)] println!("Cache execution returned with value {:#X}", ret);
         ret
     }
 }

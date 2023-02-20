@@ -38,20 +38,20 @@ impl From<u64> for Interrupts {
 
 impl Chip8 {
     /// Executes a block of instructions using the JIT compiler.
-    pub fn jit(&mut self) {
-        if self.caches.get(self.PC).is_none() {
-            self.compile_block(self.PC);
+    pub(super) fn jit(&mut self) {
+        if self.caches.get(self.state.PC).is_none() {
+            self.compile_block(self.state.PC);
         }
 
-        let ret = self.caches.get(self.PC).unwrap().run();
+        let ret = self.caches.get(self.state.PC).unwrap().run();
         match Interrupts::from(ret >> 16 & 0xFFFF) {
             Interrupts::UseInterpreter => {
-                self.PC = ret as u16;
+                self.state.PC = ret as u16;
                 self.interpreter();
             },
-            Interrupts::Jump => self.PC = ret as u16,
+            Interrupts::Jump => self.state.PC = ret as u16,
             Interrupts::InvalidateCache => {
-                self.PC = ret as u16;
+                self.state.PC = ret as u16;
                 let beg_addr = (ret >> 48) as u16;
                 let end_addr = (ret >> 32) as u16;
 
@@ -91,7 +91,7 @@ impl Chip8 {
         let mut next_pc = addr;
         'outer: loop {
             let current_pc = next_pc;
-            let opcode = Opcode::from((self.memory[current_pc as usize] as u16) << 8 | self.memory[current_pc as usize + 1] as u16);
+            let opcode = Opcode::from((self.state.memory[current_pc as usize] as u16) << 8 | self.state.memory[current_pc as usize + 1] as u16);
             next_pc += 2;
 
             // #[cfg(debug_assertions)] println!("Compiling opcode {opcode:#04X} at {current_pc:#X}");
@@ -99,7 +99,7 @@ impl Chip8 {
             match opcode.0 >> 12 & 0xF {
                 0x0 => match opcode.0 {
                     0x00E0 => {
-                        let addr_screen = self.screen.address(0) as i64;
+                        let addr_screen = self.state.screen.address(0) as i64;
                         dynasm!(asm
                             ; .arch x64
                             ; mov rdx, QWORD addr_screen
@@ -113,8 +113,8 @@ impl Chip8 {
                         );
                     },
                     0x00EE => {
-                        let sp = self.SP.address(0);
-                        let stack = self.stack.address(0);
+                        let sp = self.state.SP.address(0);
+                        let stack = self.state.stack.address(0);
                         dynasm!(asm
                             ; .arch x64
                             ; mov rdx, QWORD sp as i64
@@ -143,8 +143,8 @@ impl Chip8 {
                     break 'outer;
                 },
                 0x2 => {
-                    let sp = self.SP.address(0);
-                    let stack = self.stack.address(0);
+                    let sp = self.state.SP.address(0);
+                    let stack = self.state.stack.address(0);
                     let nnn = opcode.nnn();
                     dynasm!(asm
                         ; .arch x64
@@ -167,7 +167,7 @@ impl Chip8 {
                 },
                 0x3 => {
                     let (x, kk) = opcode.xkk();
-                    let addrx = self.V.address(x) as i64;
+                    let addrx = self.state.V.address(x) as i64;
                     dynasm!(asm
                         ; .arch x64
                         ; mov rdx, QWORD addrx
@@ -181,7 +181,7 @@ impl Chip8 {
                 },
                 0x4 => {
                     let (x, kk) = opcode.xkk();
-                    let addrx = self.V.address(x) as i64;
+                    let addrx = self.state.V.address(x) as i64;
                     dynasm!(asm
                         ; .arch x64
                         ; mov rdx, QWORD addrx
@@ -195,8 +195,8 @@ impl Chip8 {
                 },
                 0x5 => {
                     let (x, y) = opcode.xy();
-                    let addrx = self.V.address(x) as i64;
-                    let addry = self.V.address(y) as i64;
+                    let addrx = self.state.V.address(x) as i64;
+                    let addry = self.state.V.address(y) as i64;
                     dynasm!(asm
                         ; .arch x64
                         ; mov rdx, QWORD addry
@@ -211,7 +211,7 @@ impl Chip8 {
                 },
                 0x6 => {
                     let (x, kk) = opcode.xkk();
-                    let addr = self.V.address(x) as i64;
+                    let addr = self.state.V.address(x) as i64;
                     dynasm!(asm
                         ; .arch x64
                         ; mov rdx, QWORD addr
@@ -220,7 +220,7 @@ impl Chip8 {
                 },
                 0x7 => {
                     let (x, kk) = opcode.xkk();
-                    let addr = self.V.address(x) as i64;
+                    let addr = self.state.V.address(x) as i64;
                     dynasm!(asm
                         ; .arch x64
                         ; mov rdx, QWORD addr
@@ -231,8 +231,8 @@ impl Chip8 {
                     match opcode.0 & 0xF00F {
                         0x8000 => {
                             let (x, y) = opcode.xy();
-                            let addrx = self.V.address(x) as i64;
-                            let addry = self.V.address(y) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addry = self.state.V.address(y) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addry
@@ -243,8 +243,8 @@ impl Chip8 {
                         },
                         0x8001 => {
                             let (x, y) = opcode.xy();
-                            let addrx = self.V.address(x) as i64;
-                            let addry = self.V.address(y) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addry = self.state.V.address(y) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addry
@@ -255,8 +255,8 @@ impl Chip8 {
                         },
                         0x8002 => {
                             let (x, y) = opcode.xy();
-                            let addrx = self.V.address(x) as i64;
-                            let addry = self.V.address(y) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addry = self.state.V.address(y) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addry
@@ -267,8 +267,8 @@ impl Chip8 {
                         },
                         0x8003 => {
                             let (x, y) = opcode.xy();
-                            let addrx = self.V.address(x) as i64;
-                            let addry = self.V.address(y) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addry = self.state.V.address(y) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addry
@@ -279,9 +279,9 @@ impl Chip8 {
                         },
                         0x8004 => {
                             let (x, y) = opcode.xy();
-                            let addrx = self.V.address(x) as i64;
-                            let addry = self.V.address(y) as i64;
-                            let addrf = self.V.address(0xF) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addry = self.state.V.address(y) as i64;
+                            let addrf = self.state.V.address(0xF) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addry
@@ -294,9 +294,9 @@ impl Chip8 {
                         },
                         0x8005 => {
                             let (x, y) = opcode.xy();
-                            let addrx = self.V.address(x) as i64;
-                            let addry = self.V.address(y) as i64;
-                            let addrf = self.V.address(0xF) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addry = self.state.V.address(y) as i64;
+                            let addrf = self.state.V.address(0xF) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addry
@@ -310,9 +310,9 @@ impl Chip8 {
                         0x8006 => {
                             let x = opcode.x();
                             // let y = opcode.y();
-                            let addrx = self.V.address(x) as i64;
-                            // let addry = self.V.address(y) as i64;
-                            let addrf = self.V.address(0xF) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            // let addry = self.state.V.address(y) as i64;
+                            let addrf = self.state.V.address(0xF) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addrx
@@ -323,9 +323,9 @@ impl Chip8 {
                         },
                         0x8007 => {
                             let (x, y) = opcode.xy();
-                            let addrx = self.V.address(x) as i64;
-                            let addry = self.V.address(y) as i64;
-                            let addrf = self.V.address(0xF) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addry = self.state.V.address(y) as i64;
+                            let addrf = self.state.V.address(0xF) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addry
@@ -341,9 +341,9 @@ impl Chip8 {
                         0x800E => {
                             let x = opcode.x();
                             // let y = opcode.y();
-                            let addrx = self.V.address(x) as i64;
-                            // let addry = self.V.address(y) as i64;
-                            let addrf = self.V.address(0xF) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            // let addry = self.state.V.address(y) as i64;
+                            let addrf = self.state.V.address(0xF) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addrx
@@ -357,8 +357,8 @@ impl Chip8 {
                 },
                 0x9 => {
                     let (x, y) = opcode.xy();
-                    let addrx = self.V.address(x) as i64;
-                    let addry = self.V.address(y) as i64;
+                    let addrx = self.state.V.address(x) as i64;
+                    let addry = self.state.V.address(y) as i64;
                     dynasm!(asm
                         ; .arch x64
                         ; mov rdx, QWORD addry
@@ -373,7 +373,7 @@ impl Chip8 {
                 },
                 0xA => {
                     let nnn = opcode.nnn();
-                    let addr = self.I.address(0) as i64;
+                    let addr = self.state.I.address(0) as i64;
                     dynasm!(asm
                         ; .arch x64
                         ; mov rdx, QWORD addr
@@ -382,7 +382,7 @@ impl Chip8 {
                 },
                 0xB => {
                     let nnn = opcode.nnn();
-                    let addr0 = self.V.address(0) as i64;
+                    let addr0 = self.state.V.address(0) as i64;
                     dynasm!(asm
                         ; .arch x64
                         ; mov rax, QWORD Interrupts::jump(nnn)
@@ -410,8 +410,8 @@ impl Chip8 {
                     match opcode.0 & 0xF0FF {
                         0xE09E => {
                             let x = opcode.x();
-                            let addrx = self.V.address(x) as i64;
-                            let addr_keys = self.keys.address(0) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addr_keys = self.state.keys.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addrx
@@ -428,8 +428,8 @@ impl Chip8 {
                         },
                         0xE0A1 => {
                             let x = opcode.x();
-                            let addrx = self.V.address(x) as i64;
-                            let addr_keys = self.keys.address(0) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addr_keys = self.state.keys.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addrx
@@ -451,8 +451,8 @@ impl Chip8 {
                     match opcode.0 & 0xF0FF {
                         0xF007 => {
                             let x = opcode.x();
-                            let addrx = self.V.address(x) as i64;
-                            let addrdt = self.delay.address(0) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addrdt = self.state.delay.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addrdt
@@ -470,8 +470,8 @@ impl Chip8 {
                         },
                         0xF015 => {
                             let x = opcode.x();
-                            let addrx = self.V.address(x) as i64;
-                            let addrdt = self.delay.address(0) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addrdt = self.state.delay.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addrx
@@ -482,8 +482,8 @@ impl Chip8 {
                         },
                         0xF018 => {
                             let x = opcode.x();
-                            let addrx = self.V.address(x) as i64;
-                            let addrsound = self.sound.address(0) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addrsound = self.state.sound.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addrx
@@ -494,8 +494,8 @@ impl Chip8 {
                         },
                         0xF01E => {
                             let x = opcode.x();
-                            let addrx = self.V.address(x) as i64;
-                            let addri = self.I.address(0) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addri = self.state.I.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addrx
@@ -506,8 +506,8 @@ impl Chip8 {
                         },
                         0xF029 => {
                             let x = opcode.x();
-                            let addrx = self.V.address(x) as i64;
-                            let addri = self.I.address(0) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addri = self.state.I.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addrx
@@ -520,9 +520,9 @@ impl Chip8 {
                         },
                         0xF033 => {
                             let x = opcode.x();
-                            let addrx = self.V.address(x) as i64;
-                            let addri = self.I.address(0) as i64;
-                            let addrmem = self.memory.address(0) as i64;
+                            let addrx = self.state.V.address(x) as i64;
+                            let addri = self.state.I.address(0) as i64;
+                            let addrmem = self.state.memory.address(0) as i64;
                             let int_invalidate = Interrupts::invalidate as *const ();
 
                             dynasm!(asm
@@ -576,10 +576,10 @@ impl Chip8 {
                         },
                         0xF055 => {
                             let x = opcode.x();
-                            let addr0 = self.V.address(0) as i64;
-                            let addrlast = self.V.address(x) as i64;
-                            let addri = self.I.address(0) as i64;
-                            let addrmem = self.memory.address(0) as i64;
+                            let addr0 = self.state.V.address(0) as i64;
+                            let addrlast = self.state.V.address(x) as i64;
+                            let addri = self.state.I.address(0) as i64;
+                            let addrmem = self.state.memory.address(0) as i64;
                             let int_invalidate = Interrupts::invalidate as *const ();
 
                             dynasm!(asm
@@ -634,10 +634,10 @@ impl Chip8 {
                         },
                         0xF065 => {
                             let x = opcode.x();
-                            let addr0 = self.V.address(0) as i64;
-                            let addrlast = self.V.address(x) as i64;
-                            let addri = self.I.address(0) as i64;
-                            let addrmem = self.memory.address(0) as i64;
+                            let addr0 = self.state.V.address(0) as i64;
+                            let addrlast = self.state.V.address(x) as i64;
+                            let addri = self.state.I.address(0) as i64;
+                            let addrmem = self.state.memory.address(0) as i64;
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addri
