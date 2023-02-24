@@ -1,6 +1,10 @@
 //! Experimental Chip8 interpreter, cached interpreter and Just-In-Time compiler.
 
+#![feature(const_eval_limit)]
+#![feature(const_mut_refs)]
+#![feature(const_option)]
 #![feature(drain_filter)]
+#![const_eval_limit = "0"]
 
 use kanal::{Receiver, Sender, unbounded};
 
@@ -282,7 +286,7 @@ impl<T> Address for T {
 /// Commands to send to the core.
 #[derive(Debug)]
 pub enum Risp8Command {
-    /// Sets a key as pressed or unpressed.
+    /// Set a key as pressed or unpressed.
     ///
     /// `usize` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
     /// `bool` = true if pressed, false if released.
@@ -293,7 +297,7 @@ pub enum Risp8Command {
     Play,
     /// Pause emulation.
     Pause,
-    /// Runs only once the execution method.
+    /// Run the execution method once.
     SingleStep,
     /// Set the execution method.
     SetExecutionMethod(ExecutionMethod),

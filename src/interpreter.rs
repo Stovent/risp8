@@ -10,57 +10,7 @@ impl Chip8 {
         // #[cfg(debug_assertions)] println!("opcode {opcode:04X} at {:#X}", self.state.PC);
         self.state.PC += 2;
 
-        match opcode.0 >> 12 & 0xF {
-            0x0 => match opcode.0 {
-                0x00E0 => self.state.execute_00E0(opcode),
-                0x00EE => self.state.execute_00EE(opcode),
-                _ => panic!("Unknown opcode {opcode:04X}"),
-            },
-            0x1 => self.state.execute_1nnn(opcode),
-            0x2 => self.state.execute_2nnn(opcode),
-            0x3 => self.state.execute_3xkk(opcode),
-            0x4 => self.state.execute_4xkk(opcode),
-            0x5 => self.state.execute_5xy0(opcode),
-            0x6 => self.state.execute_6xkk(opcode),
-            0x7 => self.state.execute_7xkk(opcode),
-            0x8 => {
-                match opcode.0 & 0xF00F {
-                    0x8000 => self.state.execute_8xy0(opcode),
-                    0x8001 => self.state.execute_8xy1(opcode),
-                    0x8002 => self.state.execute_8xy2(opcode),
-                    0x8003 => self.state.execute_8xy3(opcode),
-                    0x8004 => self.state.execute_8xy4(opcode),
-                    0x8005 => self.state.execute_8xy5(opcode),
-                    0x8006 => self.state.execute_8xy6(opcode),
-                    0x8007 => self.state.execute_8xy7(opcode),
-                    0x800E => self.state.execute_8xyE(opcode),
-                    _ => panic!("Unknown opcode {opcode:04X}"),
-                }
-            },
-            0x9 => self.state.execute_9xy0(opcode),
-            0xA => self.state.execute_Annn(opcode),
-            0xB => self.state.execute_Bnnn(opcode),
-            0xC => self.state.execute_Cxkk(opcode),
-            0xD => self.state.execute_Dxyn(opcode),
-            0xE => match opcode.0 & 0xF0FF {
-                0xE09E => self.state.execute_Ex9E(opcode),
-                0xE0A1 => self.state.execute_ExA1(opcode),
-                _ => panic!("Unknown opcode {opcode:04X}"),
-            },
-            0xF => match opcode.0 & 0xF0FF {
-                0xF007 => self.state.execute_Fx07(opcode),
-                0xF00A => self.state.execute_Fx0A(opcode),
-                0xF015 => self.state.execute_Fx15(opcode),
-                0xF018 => self.state.execute_Fx18(opcode),
-                0xF01E => self.state.execute_Fx1E(opcode),
-                0xF029 => self.state.execute_Fx29(opcode),
-                0xF033 => self.state.execute_Fx33(opcode),
-                0xF055 => self.state.execute_Fx55(opcode),
-                0xF065 => self.state.execute_Fx65(opcode),
-                _ => panic!("Unknown opcode {opcode:04X}"),
-            },
-            _ => panic!("Unknown opcode {opcode:04X}"),
-        };
+        (State::ILUT[opcode.0 as usize])(&mut self.state, opcode);
 
         self.handle_timers();
     }
@@ -71,6 +21,8 @@ impl Chip8 {
 /// 0 if everything is good to continue.
 #[allow(non_snake_case)]
 impl State {
+    pub(super) const ILUT: [fn(&mut State, Opcode) -> u32; 1 << 16] = generate_decoder();
+
     pub(super) fn execute_00E0(&mut self, _: Opcode) -> u32 {
         self.clear_screen();
         0
@@ -327,4 +279,103 @@ impl State {
         }
         0
     }
+
+    fn execute_invalid(&mut self, opcode: Opcode) -> u32 {
+        panic!("invalid opcode {:04X} at {:#X}", opcode, self.PC - 2);
+    }
 }
+
+const fn generate_decoder() -> [fn(&mut State, Opcode) -> u32; 1 << 16] {
+    let mut lut: [fn(&mut State, Opcode) -> u32; 1 << 16] = [State::execute_invalid; 1 << 16];
+
+    let mut i = 0;
+    while i < INSTRUCTION_FORMATS.len() {
+        let (format, execute) = INSTRUCTION_FORMATS[i];
+
+        generate_opcodes(format.as_bytes(), execute, &mut lut);
+
+        i += 1;
+    }
+
+    lut
+}
+
+/// Send `format.as_bytes()` as the `format` parameter (slice of u8 charactere values).
+const fn generate_opcodes(format: &[u8], execute: fn(&mut State, Opcode) -> u32, lut: &mut [fn(&mut State, Opcode) -> u32; 1 << 16]) {
+    let mut ok = true;
+
+    let mut i = 0;
+    while i < format.len() {
+        if format[i] > 'F' as u8 {
+            ok = false;
+            let mut fmt = slice_to_array(format);
+
+            let mut j = 0;
+            while j < 16 {
+                let c = if j > 9 { j + 0x37 } else { j + 0x30 }; // u8 to ascii that doesn't crash the const evaluator.
+                fmt[i] = c;
+                generate_opcodes(&fmt, execute, lut);
+                j += 1;
+            }
+
+            break;
+        }
+
+        i += 1;
+    }
+
+    if ok {
+        let index = slice_to_usize(format);
+        lut[index] = execute;
+    }
+}
+
+const fn slice_to_usize(bytes: &[u8]) -> usize {
+    let b0 = (bytes[0] as char).to_digit(16).unwrap() as usize;
+    let b1 = (bytes[1] as char).to_digit(16).unwrap() as usize;
+    let b2 = (bytes[2] as char).to_digit(16).unwrap() as usize;
+    let b3 = (bytes[3] as char).to_digit(16).unwrap() as usize;
+
+    b0 << 12 | b1 << 8 | b2 << 4 | b3
+}
+
+const fn slice_to_array(bytes: &[u8]) -> [u8; 4] {
+    [bytes[0], bytes[1], bytes[2], bytes[3]]
+}
+
+const INSTRUCTION_FORMATS: [(&str, fn(&mut State, Opcode) -> u32); 34] = [
+    ("00E0", State::execute_00E0),
+    ("00EE", State::execute_00EE),
+    ("1nnn", State::execute_1nnn),
+    ("2nnn", State::execute_2nnn),
+    ("3xkk", State::execute_3xkk),
+    ("4xkk", State::execute_4xkk),
+    ("5xy0", State::execute_5xy0),
+    ("6xkk", State::execute_6xkk),
+    ("7xkk", State::execute_7xkk),
+    ("8xy0", State::execute_8xy0),
+    ("8xy1", State::execute_8xy1),
+    ("8xy2", State::execute_8xy2),
+    ("8xy3", State::execute_8xy3),
+    ("8xy4", State::execute_8xy4),
+    ("8xy5", State::execute_8xy5),
+    ("8xy6", State::execute_8xy6),
+    ("8xy7", State::execute_8xy7),
+    ("8xyE", State::execute_8xyE),
+    ("9xy0", State::execute_9xy0),
+    ("Annn", State::execute_Annn),
+    ("Bnnn", State::execute_Bnnn),
+    ("Cxkk", State::execute_Cxkk),
+    ("Dxyn", State::execute_Dxyn),
+    ("Ex9E", State::execute_Ex9E),
+    ("ExA1", State::execute_ExA1),
+    ("Fx07", State::execute_Fx07),
+    ("Fx0A", State::execute_Fx0A),
+    ("Fx15", State::execute_Fx15),
+    ("Fx18", State::execute_Fx18),
+    ("Fx1E", State::execute_Fx1E),
+    ("Fx29", State::execute_Fx29),
+    ("Fx33", State::execute_Fx33),
+    ("Fx55", State::execute_Fx55),
+    ("Fx65", State::execute_Fx65),
+];

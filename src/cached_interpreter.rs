@@ -9,8 +9,8 @@ use crate::{Chip8, opcode::Opcode, State};
 #[derive(Clone, Copy)]
 pub(super) struct CachedInstruction {
     opcode: Opcode,
-    /// Returns true if execution must stop.
-    execute: fn (&mut State, Opcode) -> u32,
+    /// Returns non-zero if execution must stop.
+    execute: fn(&mut State, Opcode) -> u32,
 }
 
 #[derive(Clone)]
