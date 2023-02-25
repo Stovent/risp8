@@ -11,6 +11,8 @@ use kanal::{Receiver, Sender, unbounded};
 #[cfg(target_arch = "x86_64")]
 mod cache;
 mod cached_interpreter;
+mod cached_interpreter_2;
+mod cached_interpreter_3;
 mod interpreter;
 #[cfg(target_arch = "x86_64")]
 mod jit;
@@ -19,7 +21,7 @@ mod opcode;
 #[cfg(target_arch = "x86_64")]
 use cache::Caches;
 
-use cached_interpreter::InstructionCache;
+use cached_interpreter::{InstructionCache, CachedInstruction};
 
 use std::fs::File;
 use std::io::Read;
@@ -159,16 +161,23 @@ pub struct Chip8 {
     execution_method: ExecutionMethod,
 
     interpreter_caches: Box<[Option<InstructionCache>]>,
+    interpreter_caches_2: Box<[Option<[Option<InstructionCache>; cached_interpreter_2::SUBCACHE_SIZE]>]>,
+    interpreter_caches_3: Box<[Option<CachedInstruction>]>,
 
     #[cfg(target_arch = "x86_64")]
-    caches: Caches,
+    jit_caches: Caches,
 }
 
 impl Chip8 {
     const INITIAL_PC: u16 = 0x200; // 512.
     const MEMORY_END: u16 = 0x1000; // 4096.
+
     const INTERPRETER_CACHES_LEN: usize = (Self::MEMORY_END - Self::INITIAL_PC) as usize;
+    const INTERPRETER_CACHES_LEN_2: usize = cached_interpreter_2::addr_to_index(Self::MEMORY_END);
+
     const EMPTY_INTERPRETER_CACHES: Option<InstructionCache> = None;
+    const EMPTY_INTERPRETER_CACHES_2: Option<[Option<InstructionCache>; cached_interpreter_2::SUBCACHE_SIZE]> = None;
+    const EMPTY_INTERPRETER_CACHES_3: Option<CachedInstruction> = None;
 
     /// Creates a new Chip8 context.
     ///
@@ -188,9 +197,11 @@ impl Chip8 {
             execution_method: ExecutionMethod::Interpreter,
 
             interpreter_caches: vec![Self::EMPTY_INTERPRETER_CACHES; Self::INTERPRETER_CACHES_LEN].into_boxed_slice(),
+            interpreter_caches_2: vec![Self::EMPTY_INTERPRETER_CACHES_2; Self::INTERPRETER_CACHES_LEN_2].into_boxed_slice(),
+            interpreter_caches_3: vec![Self::EMPTY_INTERPRETER_CACHES_3; Self::INTERPRETER_CACHES_LEN].into_boxed_slice(),
 
             #[cfg(target_arch = "x86_64")]
-            caches: Caches::new(),
+            jit_caches: Caches::new(),
         };
 
         core.load_rom(rom)?;
@@ -218,6 +229,8 @@ impl Chip8 {
         match self.execution_method {
             ExecutionMethod::Interpreter => self.interpreter(),
             ExecutionMethod::CachedInterpreter => self.cached_interpreter(),
+            ExecutionMethod::CachedInterpreter2 => self.cached_interpreter_2(),
+            ExecutionMethod::CachedInterpreter3 => self.cached_interpreter_3(),
             ExecutionMethod::Jit => self.jit(),
         }
     }
@@ -310,6 +323,8 @@ pub enum Risp8Command {
 pub enum ExecutionMethod {
     Interpreter,
     CachedInterpreter,
+    CachedInterpreter2,
+    CachedInterpreter3,
     Jit,
 }
 

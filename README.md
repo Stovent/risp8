@@ -30,11 +30,13 @@ Chip8 layout:
 
 | key | action |
 | --- | --- |
-|  C  | Cached interpreter mode |
-|  I  | Interpreter mode |
-|  J  | JIT mode |
+|  B  | Cached interpreter 3 |
+|  C  | Cached interpreter |
+|  I  | Interpreter |
+|  J  | JIT |
 |  P  | Play/Pause toggle |
 |  S  | Single Step |
+|  V  | Cached interpreter 2 |
 
 ## License
 

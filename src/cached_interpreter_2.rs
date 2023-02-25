@@ -1,56 +1,66 @@
-//! Cached interpreter.
+//! Cached interpreter, idea 2.
 //!
-//! Implemented using ideas from :
-//! - https://emudev.org/2021/01/31/cached-interpreter.html
-//! - https://web.archive.org/web/20210301060701/https://ps1.asuramaru.com/emulator-development/cached-interpreters
+//! It implements the trie lookup explained here:
+//! https://web.archive.org/web/20210301060701/https://ps1.asuramaru.com/emulator-development/cached-interpreters
 //!
-//! This is the basic cached interpreter: each entry in [Chip8:interpreter_caches] is the cached instructions starting
-//! at this PC, index with PC - 0x200 because theoretically there is no code execution below 0x200.
-//!
-//! When cache needs to be invalidated I have to search though every entries, which can be very slow if a lot of self-
-//! modifying code is executed.
-//! See cached_interpreter_2 for a O(1) cache invalidation method.
+//! The way the caches works is [Chip8::interpreter_caches_2]'s size is 224, indexed with (PC - 0x200) >> 4.
+//! This returns a pool of 16 caches indexed with (PC - 0x200) & 0xF.
+//! Instructions are added to the cache of a pool as long as their address is in this pool, so
+//! while PC & 0xF != 0.
+//! This makes cache invalidation O(1) on every memory write.
 
-use crate::{Chip8, opcode::Opcode, State};
+use crate::{
+    Chip8,
+    opcode::Opcode,
+    State,
+    cached_interpreter::{
+        CachedInstruction,
+        InstructionCache,
+    },
+};
 
-#[derive(Clone, Copy)]
-pub(super) struct CachedInstruction {
-    pub opcode: Opcode,
-    /// Returns non-zero if execution must stop.
-    pub execute: fn(&mut State, Opcode) -> u32,
-}
-
-#[derive(Clone)]
-pub(super) struct InstructionCache {
-    pub pc: u16,
-    /// The address of the instruction following the last instruction in this cache [pc, end_pc).
-    pub end_pc: u16,
-    pub instructions: Vec<CachedInstruction>,
-}
+const SUBCACHE_SHIFT: u16 = 4;
+pub(super) const SUBCACHE_SIZE: usize = 1 << SUBCACHE_SHIFT as usize;
+const SUBCACHE_MASK: u16 = SUBCACHE_SIZE as u16 - 1;
 
 /// Converts the given Chip8 address to its instruction cache index.
 #[inline(always)]
-pub const fn addr_to_index(addr: u16) -> usize {
-    (addr - Chip8::INITIAL_PC) as usize
+pub(super) const fn addr_to_index(addr: u16) -> usize {
+    (addr - Chip8::INITIAL_PC >> SUBCACHE_SHIFT) as usize
+}
+
+/// Converts the given Chip8 address to its index in the cache.
+#[inline(always)]
+const fn index_in_subcache(addr: u16) -> usize {
+    (addr - Chip8::INITIAL_PC & SUBCACHE_MASK) as usize
 }
 
 impl Chip8 {
-    pub(super) fn cached_interpreter(&mut self) {
+    pub(super) fn cached_interpreter_2(&mut self) {
         self.handle_timers();
 
-        let cache_index = addr_to_index(self.state.PC);
-        let cache = if let Some(cache) = &self.interpreter_caches[cache_index] {
+        let pool_index = addr_to_index(self.state.PC);
+        let pool = if let Some(pool) = &mut self.interpreter_caches_2[pool_index] {
+            pool
+        } else {
+            let pool = [Chip8::EMPTY_INTERPRETER_CACHES; SUBCACHE_SIZE];
+            self.interpreter_caches_2[pool_index] = Some(pool);
+            self.interpreter_caches_2[pool_index].as_mut().unwrap()
+        };
+
+        let cache_index = index_in_subcache(self.state.PC);
+        let cache = if let Some(cache) = &pool[cache_index] {
             cache
         } else {
-            let cache = self.new_cache_block();
-            self.interpreter_caches[cache_index] = Some(cache);
-            self.interpreter_caches[cache_index].as_ref().unwrap()
+            let cache = Self::new_cache_block_2(self.state.PC, &self.state.memory);
+            pool[cache_index] = Some(cache);
+            pool[cache_index].as_ref().unwrap()
         };
 
         // Execute the cache.
         let mut ret = 0;
         for inst in &cache.instructions {
-            // #[cfg(debug_assertions)] println!("cached opcode {:04X} at {:#X}", inst.opcode, self.state.PC);
+            // #[cfg(debug_assertions)] println!("cached 2 opcode {:04X} at {:#X}", inst.opcode, self.state.PC);
 
             self.state.PC += 2;
             let r = (inst.execute)(&mut self.state, inst.opcode);
@@ -61,19 +71,23 @@ impl Chip8 {
         }
 
         if ret > 1 {
-            self.invalidate_cache((ret >> 16) as u16, ret as u16);
+            // Invalidate caches.
+            let beg = addr_to_index((ret >> 16) as u16);
+            let end = addr_to_index(ret as u16);
+            for addr in beg..=end {
+                self.interpreter_caches_2[addr as usize] = None;
+            }
         }
     }
 
     /// Creates a new cache at the current PC. The state is not modified.
-    fn new_cache_block(&self) -> InstructionCache {
-        let block_pc = self.state.PC;
-        let mut pc = self.state.PC;
+    fn new_cache_block_2(block_pc: u16, memory: &[u8]) -> InstructionCache {
+        let mut pc = block_pc;
         let mut instructions = Vec::new();
 
         'outer: loop {
-            let opcode = Opcode((self.state.memory[pc as usize] as u16) << 8 | self.state.memory[pc as usize + 1] as u16);
-            // #[cfg(debug_assertions)] println!("caching opcode {opcode:04X} at {pc:#X}");
+            let opcode = Opcode((memory[pc as usize] as u16) << 8 | memory[pc as usize + 1] as u16);
+            // #[cfg(debug_assertions)] println!("caching 2 opcode {opcode:04X} at {pc:#X}");
             pc += 2;
 
             match opcode.0 >> 12 & 0xF {
@@ -128,11 +142,15 @@ impl Chip8 {
                 },
                 _ => break 'outer,
             };
+
+            if index_in_subcache(pc) == 0 {
+                break 'outer;
+            }
         }
 
         if instructions.is_empty() {
             pc -= 2;
-            let opcode = (self.state.memory[pc as usize] as u16) << 8 | self.state.memory[pc as usize + 1] as u16;
+            let opcode = (memory[pc as usize] as u16) << 8 | memory[pc as usize + 1] as u16;
             panic!("Unknown opcode {opcode:04X} at {pc:#X}");
         }
 
@@ -140,19 +158,6 @@ impl Chip8 {
             pc: block_pc,
             end_pc: pc,
             instructions,
-        }
-    }
-
-    /// Returns true if the current cache has been invalidated.
-    fn invalidate_cache(&mut self, beg_addr: u16, end_addr: u16) {
-        for i in 0..self.interpreter_caches.len() {
-            if let Some(cache) = &self.interpreter_caches[i] {
-                if beg_addr >= cache.pc && beg_addr < cache.end_pc ||
-                    end_addr >= cache.pc && end_addr < cache.end_pc
-                {
-                    self.interpreter_caches[i] = None;
-                }
-            }
         }
     }
 }

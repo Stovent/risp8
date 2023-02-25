@@ -39,11 +39,11 @@ impl From<u64> for Interrupts {
 impl Chip8 {
     /// Executes a block of instructions using the JIT compiler.
     pub(super) fn jit(&mut self) {
-        if self.caches.get(self.state.PC).is_none() {
+        if self.jit_caches.get(self.state.PC).is_none() {
             self.compile_block(self.state.PC);
         }
 
-        let ret = self.caches.get(self.state.PC).unwrap().run();
+        let ret = self.jit_caches.get(self.state.PC).unwrap().run();
         match Interrupts::from(ret >> 16 & 0xFFFF) {
             Interrupts::UseInterpreter => {
                 self.state.PC = ret as u16;
@@ -55,7 +55,7 @@ impl Chip8 {
                 let beg_addr = (ret >> 48) as u16;
                 let end_addr = (ret >> 32) as u16;
 
-                self.caches.invalidate(beg_addr, end_addr);
+                self.jit_caches.invalidate(beg_addr, end_addr);
             },
         }
     }
@@ -669,7 +669,7 @@ impl Chip8 {
             ; ret
         );
 
-        self.caches.add(block_pc, next_pc, asm.finalize().unwrap());
+        self.jit_caches.add(block_pc, next_pc, asm.finalize().unwrap());
     }
 }
 
