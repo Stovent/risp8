@@ -96,20 +96,23 @@ impl State {
     }
 
     fn draw(&mut self, x: usize, y: usize, n: u8) {
-        for j in 0..n {
-            let line = self.memory[(self.I + j as u16) as usize];
+        self.V[0xF] = 0;
+        let x = self.V[x] as usize % 64;
+        let y = self.V[y] as usize % 32;
 
-            for i in 0..8 {
-                if line & (0x80 >> i) != 0 {
-                    let y = ((self.V[y] + j) % 32) as usize;
-                    let x = ((self.V[x] + i) % 64) as usize;
+        for mut j in 0..n as usize {
+            let line = self.memory[self.I as usize + j];
+            j += y;
 
-                    if self.screen[y][x] {
-                        self.screen[y][x] = false;
-                        self.V[15] = 1;
+            for mut i in 0..8 {
+                let mask = 0x80 >> i;
+                i += x;
+                if line & mask != 0 && i < 64 && j < 32 {
+                    if self.screen[j][i] {
+                        self.screen[j][i] = false;
+                        self.V[0xF] = 1;
                     } else {
-                        self.screen[y][x] = true;
-                        self.V[15] = 0;
+                        self.screen[j][i] = true;
                     }
                 }
             }

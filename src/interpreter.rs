@@ -105,18 +105,21 @@ impl State {
     pub(super) fn execute_8xy1(&mut self, opcode: Opcode) -> u32 {
         let (x, y) = opcode.xy();
         self.V[x] |= self.V[y];
+        self.V[0xF] = 0; // https://games.gulrak.net/cadmium/chip8-opcode-table.html#quirk1
         0
     }
 
     pub(super) fn execute_8xy2(&mut self, opcode: Opcode) -> u32 {
         let (x, y) = opcode.xy();
         self.V[x] &= self.V[y];
+        self.V[0xF] = 0; // https://games.gulrak.net/cadmium/chip8-opcode-table.html#quirk1
         0
     }
 
     pub(super) fn execute_8xy3(&mut self, opcode: Opcode) -> u32 {
         let (x, y) = opcode.xy();
         self.V[x] ^= self.V[y];
+        self.V[0xF] = 0; // https://games.gulrak.net/cadmium/chip8-opcode-table.html#quirk1
         0
     }
 
@@ -269,6 +272,7 @@ impl State {
         for i in 0..=x {
             self.memory[self.I as usize + i] = self.V[i];
         }
+        self.I += x as u16 + 1; // https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx55-and-fx65-store-and-load-memory
         (self.I as u32) << 16 | self.I as u32 + x as u32
     }
 
@@ -277,6 +281,7 @@ impl State {
         for i in 0..=x {
             self.V[i] = self.memory[self.I as usize + i];
         }
+        self.I += x as u16 + 1; // https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx55-and-fx65-store-and-load-memory
         0
     }
 
