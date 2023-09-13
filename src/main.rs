@@ -140,17 +140,17 @@ impl ExecutionContext {
                     self.execution_method = ExecutionMethod::Interpreter;
                     self.update_window = true;
                 },
-                VirtualKeyCode::C => {
+                VirtualKeyCode::K => {
                     self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter)).unwrap();
                     self.execution_method = ExecutionMethod::CachedInterpreter;
                     self.update_window = true;
                 },
-                VirtualKeyCode::V => {
+                VirtualKeyCode::L => {
                     self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter2)).unwrap();
                     self.execution_method = ExecutionMethod::CachedInterpreter2;
                     self.update_window = true;
                 },
-                VirtualKeyCode::B => {
+                VirtualKeyCode::M => {
                     self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter3)).unwrap();
                     self.execution_method = ExecutionMethod::CachedInterpreter3;
                     self.update_window = true;
