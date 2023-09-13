@@ -29,8 +29,8 @@ struct ExecutionContext {
 impl ExecutionContext {
     fn chip8_to_pixels(&self, pixels: &mut [u8]) {
         for (i, pixel) in pixels.chunks_exact_mut(4).enumerate() {
-            let y = (i / 64) as usize;
-            let x = (i % 64) as usize;
+            let y = i / 64;
+            let x = i % 64;
             pixel.copy_from_slice(if self.screen[y][x] {
                 &WHITE
             } else {

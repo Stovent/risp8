@@ -36,9 +36,8 @@ const fn index_in_subcache(addr: u16) -> usize {
 }
 
 impl Chip8 {
-    pub(super) fn cached_interpreter_2(&mut self) {
-        self.handle_timers();
-
+    /// Executes a block of instructions using the cached interpreter variant 2.
+    pub fn cached_interpreter_2(&mut self) {
         let pool_index = addr_to_index(self.state.PC);
         let pool = if let Some(pool) = &mut self.interpreter_caches_2[pool_index] {
             pool
@@ -75,9 +74,11 @@ impl Chip8 {
             let beg = addr_to_index((ret >> 16) as u16);
             let end = addr_to_index(ret as u16);
             for addr in beg..=end {
-                self.interpreter_caches_2[addr as usize] = None;
+                self.interpreter_caches_2[addr] = None;
             }
         }
+
+        self.handle_timers();
     }
 
     /// Creates a new cache at the current PC. The state is not modified.

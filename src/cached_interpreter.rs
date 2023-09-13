@@ -35,9 +35,8 @@ pub const fn addr_to_index(addr: u16) -> usize {
 }
 
 impl Chip8 {
-    pub(super) fn cached_interpreter(&mut self) {
-        self.handle_timers();
-
+    /// Executes a block of instructions using the cached interpreter.
+    pub fn cached_interpreter(&mut self) {
         let cache_index = addr_to_index(self.state.PC);
         let cache = if let Some(cache) = &self.interpreter_caches[cache_index] {
             cache
@@ -63,6 +62,8 @@ impl Chip8 {
         if ret > 1 {
             self.invalidate_cache((ret >> 16) as u16, ret as u16);
         }
+
+        self.handle_timers();
     }
 
     /// Creates a new cache at the current PC. The state is not modified.

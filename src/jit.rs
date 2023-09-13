@@ -38,7 +38,7 @@ impl From<u64> for Interrupts {
 
 impl Chip8 {
     /// Executes a block of instructions using the JIT compiler.
-    pub(super) fn jit(&mut self) {
+    pub fn jit(&mut self) {
         if self.jit_caches.get(self.state.PC).is_none() {
             self.compile_block(self.state.PC);
         }
@@ -58,6 +58,8 @@ impl Chip8 {
                 self.jit_caches.invalidate(beg_addr, end_addr);
             },
         }
+
+        self.handle_timers();
     }
 
     /// Uses the RAX, RCX and RDX (caller-saved) registers.

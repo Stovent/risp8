@@ -5,7 +5,7 @@ use rand::Rng;
 
 impl Chip8 {
     /// Executes a single instruction using the interpreter.
-    pub(super) fn interpreter(&mut self) {
+    pub fn interpreter(&mut self) {
         let opcode = Opcode((self.state.memory[self.state.PC as usize] as u16) << 8 | self.state.memory[self.state.PC as usize + 1] as u16);
         // #[cfg(debug_assertions)] println!("opcode {opcode:04X} at {:#X}", self.state.PC);
         self.state.PC += 2;
@@ -311,7 +311,7 @@ const fn generate_opcodes(format: &[u8], execute: fn(&mut State, Opcode) -> u32,
 
     let mut i = 0;
     while i < format.len() {
-        if format[i] > 'F' as u8 {
+        if format[i] > b'F' {
             ok = false;
             let mut fmt = slice_to_array(format);
 
