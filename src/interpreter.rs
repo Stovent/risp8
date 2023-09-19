@@ -10,7 +10,7 @@ impl Chip8 {
         // #[cfg(debug_assertions)] println!("opcode {opcode:04X} at {:#X}", self.state.PC);
         self.state.PC += 2;
 
-        (State::ILUT[opcode.0 as usize])(&mut self.state, opcode);
+        self.state.execute_instruction(opcode);
 
         self.handle_timers();
     }
@@ -21,6 +21,11 @@ impl Chip8 {
 /// 0 if everything is good to continue.
 #[allow(non_snake_case)]
 impl State {
+    /// Executes the given opcode.
+    pub fn execute_instruction(&mut self, opcode: Opcode) -> u32 {
+        (Self::ILUT[opcode.0 as usize])(self, opcode)
+    }
+
     pub(super) const ILUT: [fn(&mut State, Opcode) -> u32; 1 << 16] = generate_decoder();
 
     pub(super) fn execute_00E0(&mut self, _: Opcode) -> u32 {
@@ -305,7 +310,7 @@ const fn generate_decoder() -> [fn(&mut State, Opcode) -> u32; 1 << 16] {
     lut
 }
 
-/// Send `format.as_bytes()` as the `format` parameter (slice of u8 charactere values).
+/// Send `format.as_bytes()` as the `format` parameter (slice of u8 character values).
 const fn generate_opcodes(format: &[u8], execute: fn(&mut State, Opcode) -> u32, lut: &mut [fn(&mut State, Opcode) -> u32; 1 << 16]) {
     let mut ok = true;
 

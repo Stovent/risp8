@@ -26,13 +26,13 @@ const SUBCACHE_MASK: u16 = SUBCACHE_SIZE as u16 - 1;
 /// Converts the given Chip8 address to its instruction cache index.
 #[inline(always)]
 pub(super) const fn addr_to_index(addr: u16) -> usize {
-    (addr - Chip8::INITIAL_PC >> SUBCACHE_SHIFT) as usize
+    addr as usize - State::INITIAL_PC >> SUBCACHE_SHIFT
 }
 
 /// Converts the given Chip8 address to its index in the cache.
 #[inline(always)]
 const fn index_in_subcache(addr: u16) -> usize {
-    (addr - Chip8::INITIAL_PC & SUBCACHE_MASK) as usize
+    addr as usize - State::INITIAL_PC & SUBCACHE_MASK as usize
 }
 
 impl Chip8 {

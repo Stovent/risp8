@@ -21,8 +21,8 @@ use cache::Caches;
 
 use cached_interpreter::{InstructionCache, CachedInstruction};
 
-use std::fs::File;
-use std::io::Read;
+use std::fs::read;
+use std::io::Error;
 use std::time::{Duration, Instant};
 
 #[allow(non_snake_case)]
@@ -48,28 +48,38 @@ struct State {
 }
 
 impl State {
-    fn new() -> Self {
-        let mut state = Self {
+    const INITIAL_PC: usize = 0x200; // 512.
+    const MEMORY_END: usize = 0x1000; // 4096.
+    const MAX_PROGRAM_LEN: usize = Self::MEMORY_END - Self::INITIAL_PC;
+
+    /// Returns a new chip-8 state with the given program loaded.
+    pub fn new(program: &[u8]) -> Self {
+        Self {
             SP: 0,
-            PC: Chip8::INITIAL_PC,
+            PC: Self::INITIAL_PC as u16,
             I: 0,
             stack: [0; 16],
             V: [0; 16],
-            memory: [0; 4096],
+            memory: Self::new_memory(program),
             delay: 0,
             sound: 0,
             screen: [[false; 64]; 32],
             keys: [false; 16],
 
             wait_key: None,
-        };
-        state.load_font();
-
-        state
+        }
     }
 
-    fn load_font(&mut self) {
-        self.memory[0..80].copy_from_slice(&[
+    /// Returns the memory in its initial state with the given program loaded.
+    ///
+    /// `program` must not be greater than 3584 bytes.
+    fn new_memory(program: &[u8]) -> [u8; 4096] {
+        assert!(program.len() <= Self::MAX_PROGRAM_LEN, "Input program ({} bytes) is too big for memory (max: {} bytes)", program.len(), Self::MAX_PROGRAM_LEN);
+
+        let mut memory = [0; 4096];
+
+        // Load font.
+        memory[0..80].copy_from_slice(&[
             0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
             0x20, 0x60, 0x20, 0x20, 0x70, // 1
             0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
@@ -87,9 +97,15 @@ impl State {
             0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
             0xF0, 0x80, 0xF0, 0x80, 0x80, // F
         ]);
+
+        // Load program.
+        let end = Self::INITIAL_PC + program.len();
+        memory[Self::INITIAL_PC..end].copy_from_slice(program);
+
+        memory
     }
 
-    fn clear_screen(&mut self) {
+    const fn clear_screen(&mut self) {
         self.screen = [[false; 64]; 32];
     }
 
@@ -121,7 +137,7 @@ impl State {
     ///
     /// `key` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
     /// `pressed` = true if pressed, false if released.
-    fn set_key(&mut self, key: usize, pressed: bool) {
+    pub fn set_key(&mut self, key: usize, pressed: bool) {
         if key <= 0xF {
             if self.keys[key] && !pressed { // Key pressed then released.
                 match self.wait_key {
@@ -170,11 +186,8 @@ pub struct Chip8 {
 }
 
 impl Chip8 {
-    const INITIAL_PC: u16 = 0x200; // 512.
-    const MEMORY_END: u16 = 0x1000; // 4096.
-
-    const INTERPRETER_CACHES_LEN: usize = (Self::MEMORY_END - Self::INITIAL_PC) as usize;
-    const INTERPRETER_CACHES_LEN_2: usize = cached_interpreter_2::addr_to_index(Self::MEMORY_END);
+    const INTERPRETER_CACHES_LEN: usize = State::MEMORY_END - State::INITIAL_PC;
+    const INTERPRETER_CACHES_LEN_2: usize = cached_interpreter_2::addr_to_index(State::MEMORY_END as u16);
 
     const EMPTY_INTERPRETER_CACHES: Option<InstructionCache> = None;
     const EMPTY_INTERPRETER_CACHES_2: Option<[Option<InstructionCache>; cached_interpreter_2::SUBCACHE_SIZE]> = None;
@@ -183,12 +196,12 @@ impl Chip8 {
     /// Creates a new Chip8 context.
     ///
     /// `rom` is the path to the ROM to open.
-    pub fn new(rom: &str) -> Result<(Self, Sender<Risp8Command>, Receiver<Risp8Answer>), String> {
+    pub fn new(rom: &str) -> Result<(Self, Sender<Risp8Command>, Receiver<Risp8Answer>), Error> {
         let (channel_out, user_in) = unbounded();
         let (user_out, channel_in) = unbounded();
 
-        let mut core = Chip8 {
-            state: State::new(),
+        let core = Self {
+            state: Self::new_state(rom)?,
 
             timer: Instant::now(),
 
@@ -205,9 +218,13 @@ impl Chip8 {
             jit_caches: Caches::new(),
         };
 
-        core.load_rom(rom)?;
-
         Ok((core, user_out, user_in))
+    }
+
+    fn new_state(filename: &str) -> Result<State, Error> {
+        let program = read(filename)?;
+
+        Ok(State::new(&program))
     }
 
     /// The method to call to start emulation.
@@ -255,18 +272,6 @@ impl Chip8 {
         }
 
         false
-    }
-
-    fn load_rom(&mut self, filename: &str) -> Result<usize, String> {
-        let mut input = match File::open(filename) {
-            Ok(f) => f,
-            Err(e) => return Err(format!("Could not open ROM: {}", e)),
-        };
-
-        match input.read(&mut self.state.memory[Self::INITIAL_PC as usize..Self::MEMORY_END as usize]) {
-            Ok(size) => Ok(size),
-            Err(e) => Err(format!("Could not read from ROM: {}", e)),
-        }
     }
 
     fn handle_timers(&mut self) {

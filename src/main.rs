@@ -229,7 +229,6 @@ fn main() {
     let mut ctx = ExecutionContext {
         send: chip8_in,
         recv: chip8_out,
-        screen: [[false; 64]; 32],
         is_playing: false,
         execution_method: ExecutionMethod::Interpreter,
         numpad_keyboard,
