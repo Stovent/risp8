@@ -13,7 +13,7 @@ categories = ["compilers", "emulators"]
 kanal = "0.1.0-pre8"
 pixels = "0.13.0"
 rand = "0.7.0"
-winit = "0.28.1"
+winit = "0.29.1-beta"
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 dynasmrt = "2.0.0"

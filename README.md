@@ -6,8 +6,7 @@ The JIT is only available on x86_64.
 
 ## Controls
 
-The Chip8 controls are mapped on the keyboard or on the numpad.
-By default, the keyboard mapping is used. To use the numpad, add `--keymap-numpad` before the ROM path.
+The Chip8 controls are mapped on both the keyboard and on the numpad.
 
 For each table below, the key in each layout square is the corresponding Chip8 key.
 
