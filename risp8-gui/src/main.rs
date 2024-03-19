@@ -1,11 +1,9 @@
 use std::thread;
 use std::time::Duration;
 
-use kanal::{Sender, Receiver};
-
 use pixels::{Pixels, SurfaceTexture};
 
-use risp8::{Chip8, ExecutionMethod, Risp8Answer, Risp8Command};
+use risp8::{Chip8, ExecutionMethod, Receiver, Risp8Answer, Risp8Command, Sender};
 
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, ElementState, Event, RawKeyEvent, StartCause, WindowEvent};
@@ -208,4 +206,26 @@ pub fn gui_main(mut chip8: Chip8, chip8_in: Sender<Risp8Command>, chip8_out: Rec
             _ => (),
         }
     }).unwrap();
+}
+
+fn print_usage_and_exit(exec: &str) -> ! {
+    println!("Usage: {exec} <ROM>");
+    std::process::exit(1);
+}
+
+fn main() {
+    let mut args = std::env::args();
+    let exec = args.next().unwrap();
+    if args.len() != 1 {
+        print_usage_and_exit(&exec);
+    }
+
+    let rom_file = args.next().unwrap();
+    let (chip8, chip8_in, chip8_out) = Chip8::new(&rom_file)
+        .unwrap_or_else(|e| {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        });
+
+    gui_main(chip8, chip8_in, chip8_out);
 }

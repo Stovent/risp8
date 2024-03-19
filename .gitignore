@@ -1,8 +1,10 @@
 /*
 
+!risp8/
+!risp8-gui/
+!risp8-tui/
+
 !.gitignore
 !Cargo.toml
 !LICENSE
 !README.md
-
-!src/

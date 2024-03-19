@@ -4,7 +4,8 @@
 #![feature(const_option)]
 #![feature(extract_if)]
 
-use kanal::{Receiver, Sender, unbounded};
+pub use kanal::{Receiver, Sender};
+use kanal::unbounded;
 
 #[cfg(target_arch = "x86_64")]
 mod cache;
