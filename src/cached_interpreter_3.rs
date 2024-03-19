@@ -25,7 +25,7 @@ use crate::{
 };
 
 impl Chip8 {
-    /// Executes a block of instructions using the cached interpreter variant 3.
+    /// Executes an instruction using the cached interpreter variant 3.
     pub fn cached_interpreter_3(&mut self) {
         let cache_index = addr_to_index(self.state.PC);
         let pc = self.state.PC;

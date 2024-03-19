@@ -340,6 +340,10 @@ const fn generate_opcodes(format: &[u8], execute: fn(&mut State, Opcode) -> u32,
     }
 }
 
+const fn slice_to_array(bytes: &[u8]) -> [u8; 4] {
+    [bytes[0], bytes[1], bytes[2], bytes[3]]
+}
+
 const fn slice_to_usize(bytes: &[u8]) -> usize {
     let b0 = (bytes[0] as char).to_digit(16).unwrap() as usize;
     let b1 = (bytes[1] as char).to_digit(16).unwrap() as usize;
@@ -347,10 +351,6 @@ const fn slice_to_usize(bytes: &[u8]) -> usize {
     let b3 = (bytes[3] as char).to_digit(16).unwrap() as usize;
 
     b0 << 12 | b1 << 8 | b2 << 4 | b3
-}
-
-const fn slice_to_array(bytes: &[u8]) -> [u8; 4] {
-    [bytes[0], bytes[1], bytes[2], bytes[3]]
 }
 
 const INSTRUCTION_FORMATS: [(&str, fn(&mut State, Opcode) -> u32); 34] = [

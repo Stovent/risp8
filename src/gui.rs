@@ -1,17 +1,17 @@
-use risp8::{Chip8, ExecutionMethod, Risp8Answer, Risp8Command};
+use std::thread;
+use std::time::Duration;
 
 use kanal::{Sender, Receiver};
 
 use pixels::{Pixels, SurfaceTexture};
+
+use risp8::{Chip8, ExecutionMethod, Risp8Answer, Risp8Command};
 
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, ElementState, Event, RawKeyEvent, StartCause, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::WindowBuilder;
-
-use std::thread;
-use std::time::Duration;
 
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];

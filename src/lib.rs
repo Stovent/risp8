@@ -25,18 +25,24 @@ use std::fs::read;
 use std::io::Error;
 use std::time::{Duration, Instant};
 
+/// The underlying type that represents the Chip8 screen.
+pub type Screen = [[bool; State::SCREEN_WIDTH]; State::SCREEN_HEIGHT];
+/// The default value of the screen.
+pub const DEFAULT_SCREEN: Screen = [[false; 64]; 32];
+
+/// State of the chip8 virtual machine.
 #[allow(non_snake_case)]
 #[derive(Clone, Copy, Debug)]
-struct State {
+pub struct State {
     SP: usize,
     PC: u16,
     I: u16,
     stack: [u16; 16],
     V: [u8; 16],
-    memory: [u8; 4096],
+    memory: [u8; Self::MEMORY_SIZE],
     delay: u8,
     sound: u8,
-    screen: [[bool; 64]; 32],
+    screen: Screen,
     keys: [bool; 16],
 
     /// If None, the ROM is not waiting for a key.
@@ -48,9 +54,11 @@ struct State {
 }
 
 impl State {
+    pub const SCREEN_WIDTH: usize = 64;
+    pub const SCREEN_HEIGHT: usize = 32;
     const INITIAL_PC: usize = 0x200; // 512.
-    const MEMORY_END: usize = 0x1000; // 4096.
-    const MAX_PROGRAM_LEN: usize = Self::MEMORY_END - Self::INITIAL_PC;
+    const MEMORY_SIZE: usize = 0x1000; // 4096.
+    pub const MAX_PROGRAM_LEN: usize = Self::MEMORY_SIZE - Self::INITIAL_PC;
 
     /// Returns a new chip-8 state with the given program loaded.
     pub fn new(program: &[u8]) -> Self {
@@ -63,7 +71,7 @@ impl State {
             memory: Self::new_memory(program),
             delay: 0,
             sound: 0,
-            screen: [[false; 64]; 32],
+            screen: DEFAULT_SCREEN,
             keys: [false; 16],
 
             wait_key: None,
@@ -74,7 +82,7 @@ impl State {
     ///
     /// `program` must not be greater than 3584 bytes.
     fn new_memory(program: &[u8]) -> [u8; 4096] {
-        assert!(program.len() <= Self::MAX_PROGRAM_LEN, "Input program ({} bytes) is too big for memory (max: {} bytes)", program.len(), Self::MAX_PROGRAM_LEN);
+        assert!(program.len() <= Self::MAX_PROGRAM_LEN, "Input program ({} bytes) exceeds memory size ({} bytes)", program.len(), Self::MAX_PROGRAM_LEN);
 
         let mut memory = [0; 4096];
 
@@ -186,8 +194,8 @@ pub struct Chip8 {
 }
 
 impl Chip8 {
-    const INTERPRETER_CACHES_LEN: usize = State::MEMORY_END - State::INITIAL_PC;
-    const INTERPRETER_CACHES_LEN_2: usize = cached_interpreter_2::addr_to_index(State::MEMORY_END as u16);
+    const INTERPRETER_CACHES_LEN: usize = State::MAX_PROGRAM_LEN;
+    const INTERPRETER_CACHES_LEN_2: usize = cached_interpreter_2::addr_to_index(State::MEMORY_SIZE as u16);
 
     const EMPTY_INTERPRETER_CACHES: Option<InstructionCache> = None;
     const EMPTY_INTERPRETER_CACHES_2: Option<[Option<InstructionCache>; cached_interpreter_2::SUBCACHE_SIZE]> = None;
