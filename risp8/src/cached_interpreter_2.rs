@@ -1,7 +1,7 @@
 //! Cached interpreter, idea 2.
 //!
 //! It implements the trie lookup explained here:
-//! https://web.archive.org/web/20210301060701/https://ps1.asuramaru.com/emulator-development/cached-interpreters
+//! <https://web.archive.org/web/20210301060701/https://ps1.asuramaru.com/emulator-development/cached-interpreters>
 //!
 //! The way the caches works is [Chip8::interpreter_caches_2]'s size is 224, indexed with (PC - 0x200) >> 4.
 //! This returns a pool of 16 caches indexed with (PC - 0x200) & 0xF.

@@ -1,12 +1,14 @@
 # risp8
 
 Experimental Chip8 interpreter, cached interpreter and JIT compiler written in Rust.
+There is a GUI frontend and a TUI frontend.
 
 The JIT is only available on x86_64.
 
 ## Controls
 
-The Chip8 controls are mapped on both the keyboard and on the numpad.
+The Chip8 controls are mapped on the keyboard and on the numpad.
+TUI only has the keyboard mapping.
 
 For each table below, the key in each layout square is the corresponding Chip8 key.
 
@@ -52,7 +54,7 @@ Chip8 key:
 | 7 | 8 | 9 | E |
 | 0 | 0 | F | E |
 
-## Control hotkeys
+## GUI Control hotkeys
 
 | key | action |
 |:---:| --- |
@@ -63,6 +65,20 @@ Chip8 key:
 |  L  | Cached interpreter 2 |
 |  M  | Cached interpreter 3 |
 |  J  | JIT |
+
+## TUI Control hotkeys
+
+| key | action |
+|:---:| --- |
+|  Q  | Close the emulator |
+|  P  | Play/Pause toggle |
+|  S  | Single Step |
+|  I  | Interpreter |
+|  K  | Cached interpreter |
+|  L  | Cached interpreter 2 |
+|  M  | Cached interpreter 3 |
+|  J  | JIT |
+|  A  | Change the display charactere |
 
 ## License
 

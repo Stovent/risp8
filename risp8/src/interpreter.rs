@@ -17,7 +17,7 @@ impl Chip8 {
 }
 
 /// The execution methods returns 1 if the instruction modified the program counter,
-/// > 1 to request a cache invalidation of [beg, end] inclusive with the beg in the high order word,
+/// `> 1` to request a cache invalidation of [beg, end] inclusive with the beg in the high order word,
 /// 0 if everything is good to continue.
 #[allow(non_snake_case)]
 impl State {

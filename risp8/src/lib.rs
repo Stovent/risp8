@@ -29,7 +29,14 @@ use std::time::{Duration, Instant};
 /// The underlying type that represents the Chip8 screen.
 pub type Screen = [[bool; State::SCREEN_WIDTH]; State::SCREEN_HEIGHT];
 /// The default value of the screen.
-pub const DEFAULT_SCREEN: Screen = [[false; 64]; 32];
+pub const DEFAULT_SCREEN: Screen = [[false; State::SCREEN_WIDTH]; State::SCREEN_HEIGHT];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WaitKey {
+    NotWaiting,
+    Waiting,
+    Key(u8),
+}
 
 /// State of the chip8 virtual machine.
 #[allow(non_snake_case)]
@@ -46,12 +53,7 @@ pub struct State {
     screen: Screen,
     keys: [bool; 16],
 
-    /// If None, the ROM is not waiting for a key.
-    ///
-    /// If Some(> 0xF), a wait key instruction has occured but no new key has been pressed yet.
-    ///
-    /// If Some(<= 0xF), the awaited key has been pressed and instruction execution will resume on the next loop.
-    wait_key: Option<u8>,
+    wait_key: WaitKey,
 }
 
 impl State {
@@ -75,17 +77,17 @@ impl State {
             screen: DEFAULT_SCREEN,
             keys: [false; 16],
 
-            wait_key: None,
+            wait_key: WaitKey::NotWaiting,
         }
     }
 
     /// Returns the memory in its initial state with the given program loaded.
     ///
-    /// `program` must not be greater than 3584 bytes.
-    fn new_memory(program: &[u8]) -> [u8; 4096] {
+    /// `program` must not be greater than State::MAX_PROGRAM_LEN bytes.
+    fn new_memory(program: &[u8]) -> [u8; State::MEMORY_SIZE] {
         assert!(program.len() <= Self::MAX_PROGRAM_LEN, "Input program ({} bytes) exceeds memory size ({} bytes)", program.len(), Self::MAX_PROGRAM_LEN);
 
-        let mut memory = [0; 4096];
+        let mut memory = [0; State::MEMORY_SIZE];
 
         // Load font.
         memory[0..80].copy_from_slice(&[
@@ -115,13 +117,13 @@ impl State {
     }
 
     const fn clear_screen(&mut self) {
-        self.screen = [[false; 64]; 32];
+        self.screen = DEFAULT_SCREEN;
     }
 
     fn draw(&mut self, x: usize, y: usize, n: u8) {
         self.V[0xF] = 0;
-        let x = self.V[x] as usize % 64;
-        let y = self.V[y] as usize % 32;
+        let x = self.V[x] as usize % State::SCREEN_WIDTH;
+        let y = self.V[y] as usize % State::SCREEN_HEIGHT;
 
         for mut j in 0..n as usize {
             let line = self.memory[self.I as usize + j];
@@ -130,7 +132,7 @@ impl State {
             for mut i in 0..8 {
                 let mask = 0x80 >> i;
                 i += x;
-                if line & mask != 0 && i < 64 && j < 32 {
+                if line & mask != 0 && i < State::SCREEN_WIDTH && j < State::SCREEN_HEIGHT {
                     if self.screen[j][i] {
                         self.screen[j][i] = false;
                         self.V[0xF] = 1;
@@ -148,11 +150,8 @@ impl State {
     /// `pressed` = true if pressed, false if released.
     pub fn set_key(&mut self, key: usize, pressed: bool) {
         if key <= 0xF {
-            if self.keys[key] && !pressed { // Key pressed then released.
-                match self.wait_key {
-                    Some(16..=u8::MAX) => self.wait_key = Some(key as u8),
-                    _ => (),
-                }
+            if self.wait_key == WaitKey::Waiting && self.keys[key] && !pressed { // Wait key triggers when released.
+                self.wait_key = WaitKey::Key(key as u8);
             }
             self.keys[key] = pressed;
         }
@@ -161,15 +160,15 @@ impl State {
     /// Returns true if wait is over, false if it should continue to wait.
     fn wait_key(&mut self, x: usize) -> bool {
         match self.wait_key {
-            Some(_key@0..=0xF) => {
-                // If key is valid, store the key in the given register.
-                self.V[x] = self.wait_key.take().unwrap();
-                true
-            },
-            _ => {
-                // Set to waiting.
-                self.wait_key = Some(255);
+            WaitKey::NotWaiting => {
+                self.wait_key = WaitKey::Waiting;
                 false
+            },
+            WaitKey::Waiting => false,
+            WaitKey::Key(k) => {
+                self.V[x] = k;
+                self.wait_key = WaitKey::NotWaiting;
+                true
             },
         }
     }
@@ -236,7 +235,7 @@ impl Chip8 {
         Ok(State::new(&program))
     }
 
-    /// The method to call to start emulation.
+    /// Starts emulation in an infinite loop.
     ///
     /// This method is meant to run concurrently with the rest of the program (GUI, ...).
     /// Use the channels to send commands to control the core and receive answers from it.
@@ -301,7 +300,9 @@ impl Chip8 {
     }
 }
 
+/// Trait to get the address of a variable.
 trait Address {
+    /// Returns the address of `self`, possibly offsetted by the given number of bytes.
     fn address(&self, offset: usize) -> usize;
 }
 
@@ -347,7 +348,7 @@ pub enum ExecutionMethod {
 #[derive(Debug)]
 pub enum Risp8Answer {
     /// A copy of the screen.
-    Screen([[bool; 64]; 32]),
+    Screen(Screen),
     /// Indicates that the sound should start to be continuously emited.
     ///
     /// This is emitted 60 times per seconds for as long as a sound should be emitted.
