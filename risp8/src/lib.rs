@@ -1,9 +1,5 @@
 //! Experimental Chip8 interpreter, cached interpreter and Just-In-Time compiler.
 
-#![feature(const_mut_refs)]
-#![feature(const_option)]
-#![feature(extract_if)]
-
 pub use kanal::{Receiver, Sender};
 use kanal::unbounded;
 
@@ -261,7 +257,7 @@ impl Chip8 {
         }
     }
 
-    /// Returns true if the emulator has to be stopped.
+    /// Returns true if the emulator has to be stopped (when the channel is closed or error).
     fn handle_channels(&mut self) -> bool {
         while !self.channel_in.is_empty() {
             let Ok(cmd) = self.channel_in.recv() else {
