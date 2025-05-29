@@ -56,7 +56,6 @@ impl Chip8 {
                 let end_addr = (ret >> 32) as u16;
 
                 self.caches.invalidate(beg_addr, end_addr);
-                self.caches.clear(); // TODO: correctly implement cache invalidation without having to flush it.
             },
         }
     }
@@ -64,8 +63,8 @@ impl Chip8 {
     /// Uses the RAX, RCX and RDX (caller-saved) registers.
     ///
     /// RAX contains the return value of the block. RAX, RCX and RDX are used internally by the compiled code.
-    fn compile_block(&mut self, mut pc: u16) {
-        let block_pc = pc;
+    fn compile_block(&mut self, addr: u16) {
+        let block_pc = addr;
         let mut asm = Assembler::new().expect("Failed to create new assembler");
 
         let timer = handle_timers as *const ();
@@ -89,11 +88,13 @@ impl Chip8 {
             ; pop rdi
         );
 
+        let mut next_pc = addr;
         'outer: loop {
-            let opcode = Opcode::from((self.memory[pc as usize] as u16) << 8 | self.memory[pc as usize + 1] as u16);
+            let current_pc = next_pc;
+            let opcode = Opcode::from((self.memory[current_pc as usize] as u16) << 8 | self.memory[current_pc as usize + 1] as u16);
+            next_pc += 2;
 
-            #[cfg(debug_assertions)]
-            println!("Compiling opcode {:#04X} at {:#X}", opcode, pc);
+            // #[cfg(debug_assertions)] println!("Compiling opcode {opcode:#04X} at {current_pc:#X}");
 
             match opcode.0 >> 12 & 0xF {
                 0x0 => match opcode.0 {
@@ -119,7 +120,7 @@ impl Chip8 {
                             ; mov rdx, QWORD sp as i64
                             ; cmp QWORD [rdx], 0
                             ; ja >lbl
-                            ; mov rax, QWORD Interrupts::use_interpreter(pc)
+                            ; mov rax, QWORD Interrupts::use_interpreter(current_pc)
                             ; ret
                             ; lbl:
                             ; dec QWORD [rdx]
@@ -132,7 +133,7 @@ impl Chip8 {
                         );
                         break 'outer;
                     },
-                    _ => panic!("Unknown opcode {:04X}", opcode),
+                    _ => panic!("Unknown opcode {opcode:04X}"),
                 },
                 0x1 => {
                     dynasm!(asm
@@ -151,13 +152,13 @@ impl Chip8 {
                         ; mov rax, QWORD [rdx]
                         ; cmp rax, 15
                         ; jb >lbl
-                        ; mov rax, QWORD Interrupts::use_interpreter(pc)
+                        ; mov rax, QWORD Interrupts::use_interpreter(current_pc)
                         ; ret
                         ; lbl:
                         ; shl rax, 1
                         ; mov rcx, QWORD stack as i64
                         ; add rcx, rax
-                        ; mov WORD [rcx], (pc + 2) as i16
+                        ; mov WORD [rcx], (next_pc) as i16
                         ; inc QWORD [rdx]
                         ; mov rax, QWORD Interrupts::jump(0)
                         ; mov ax, WORD nnn as i16
@@ -173,7 +174,7 @@ impl Chip8 {
                         ; mov al, BYTE [rdx]
                         ; cmp al, kk as i8
                         ; jne >lbl
-                        ; mov rax, QWORD Interrupts::jump(pc + 4)
+                        ; mov rax, QWORD Interrupts::jump(current_pc + 4)
                         ; ret
                         ; lbl:
                     );
@@ -187,7 +188,7 @@ impl Chip8 {
                         ; mov al, BYTE [rdx]
                         ; cmp al, kk as i8
                         ; je >lbl
-                        ; mov rax, QWORD Interrupts::jump(pc + 4)
+                        ; mov rax, QWORD Interrupts::jump(current_pc + 4)
                         ; ret
                         ; lbl:
                     );
@@ -203,7 +204,7 @@ impl Chip8 {
                         ; mov rdx, QWORD addrx
                         ; cmp BYTE [rdx], al
                         ; jne >lbl
-                        ; mov rax, QWORD Interrupts::jump(pc + 4)
+                        ; mov rax, QWORD Interrupts::jump(current_pc + 4)
                         ; ret
                         ; lbl:
                     );
@@ -351,7 +352,7 @@ impl Chip8 {
                                 ; setc BYTE [rdx]
                             );
                         },
-                        _ => panic!("Unknown opcode {:04X}", opcode),
+                        _ => panic!("Unknown opcode {opcode:04X}"),
                     }
                 },
                 0x9 => {
@@ -365,7 +366,7 @@ impl Chip8 {
                         ; mov rdx, QWORD addrx
                         ; cmp BYTE [rdx], al
                         ; je >lbl
-                        ; mov rax, QWORD Interrupts::jump(pc + 4)
+                        ; mov rax, QWORD Interrupts::jump(current_pc + 4)
                         ; ret
                         ; lbl:
                     );
@@ -394,14 +395,14 @@ impl Chip8 {
                 0xC => {
                     dynasm!(asm
                         ; .arch x64
-                        ; mov rax, QWORD Interrupts::use_interpreter(pc)
+                        ; mov rax, QWORD Interrupts::use_interpreter(current_pc)
                     );
                     break 'outer;
                 },
                 0xD => {
                     dynasm!(asm
                         ; .arch x64
-                        ; mov rax, QWORD Interrupts::use_interpreter(pc)
+                        ; mov rax, QWORD Interrupts::use_interpreter(current_pc)
                     );
                     break 'outer;
                 },
@@ -420,7 +421,7 @@ impl Chip8 {
                                 ; mov al, BYTE [rdx]
                                 ; cmp al, 0
                                 ; je >lbl
-                                ; mov rax, QWORD Interrupts::jump(pc + 4)
+                                ; mov rax, QWORD Interrupts::jump(current_pc + 4)
                                 ; ret
                                 ; lbl:
                             );
@@ -438,12 +439,12 @@ impl Chip8 {
                                 ; mov al, BYTE [rdx]
                                 ; cmp al, 0
                                 ; jne >lbl
-                                ; mov rax, QWORD Interrupts::jump(pc + 4)
+                                ; mov rax, QWORD Interrupts::jump(current_pc + 4)
                                 ; ret
                                 ; lbl:
                             );
                         },
-                        _ => panic!("Unknown opcode {:04X}", opcode),
+                        _ => panic!("Unknown opcode {opcode:04X}"),
                     }
                 },
                 0xF => {
@@ -463,7 +464,7 @@ impl Chip8 {
                         0xF00A => {
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov rax, QWORD Interrupts::use_interpreter(pc)
+                                ; mov rax, QWORD Interrupts::use_interpreter(current_pc)
                             );
                             break 'outer;
                         },
@@ -522,6 +523,8 @@ impl Chip8 {
                             let addrx = self.V.address(x) as i64;
                             let addri = self.I.address(0) as i64;
                             let addrmem = self.memory.address(0) as i64;
+                            let int_invalidate = Interrupts::invalidate as *const ();
+
                             dynasm!(asm
                                 ; .arch x64
                                 ; mov rdx, QWORD addri
@@ -539,6 +542,37 @@ impl Chip8 {
                                 ; mov BYTE [rdx + 1], al
                                 ; mov BYTE [rdx + 2], ah
                             );
+
+                            #[cfg(target_os = "windows")]
+                            dynasm!(asm
+                                ; .arch x64
+                                ; mov rcx, QWORD current_pc as i64 // Load current PC in rcx.
+                                ; add rcx, 2 // Add 2 for next PC.
+                                ; mov rdx, QWORD addri
+                                ; movzx rdx, WORD [rdx] // Load begin address I in rdx.
+                                ; mov r8, rdx
+                                ; add r8, 2 // Load end address in r8.
+                                ; mov rax, QWORD int_invalidate as i64
+                                ; call rax
+                            );
+
+                            #[cfg(not(target_os = "windows"))]
+                            dynasm!(asm
+                                ; .arch x64
+                                ; push rdi
+                                ; push rsi
+                                ; mov rdi, QWORD pc as i64 // Load current PC in rdi.
+                                ; add rdi, 2 // Add 2 for next PC.
+                                ; mov rsi, QWORD addri
+                                ; movzx rsi, WORD [rsi] // Load begin address I in rsi.
+                                ; mov rdx, rsi
+                                ; add rdx, 2 // Load end address in rdx.
+                                ; mov rax, QWORD int_invalidate as i64
+                                ; call rax
+                                ; pop rsi
+                                ; pop rdi
+                            );
+                            break 'outer;
                         },
                         0xF055 => {
                             let x = opcode.x();
@@ -570,7 +604,7 @@ impl Chip8 {
                             #[cfg(target_os = "windows")]
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov rcx, QWORD pc as i64 // Load current PC in rcx.
+                                ; mov rcx, QWORD current_pc as i64 // Load current PC in rcx.
                                 ; add rcx, 2 // Add 2 for next PC.
                                 ; mov rdx, QWORD addri
                                 ; movzx rdx, WORD [rdx] // Load begin address I in rdx.
@@ -623,13 +657,11 @@ impl Chip8 {
                                 ; end:
                             );
                         },
-                        _ => panic!("Unknown opcode {:04X}", opcode),
+                        _ => panic!("Unknown opcode {opcode:04X}"),
                     }
                 },
-                _ => panic!("Unknown opcode {:04X}", opcode),
+                _ => panic!("Unknown opcode {opcode:04X}"),
             };
-
-            pc += 2;
         }
 
         dynasm!(asm
@@ -637,7 +669,7 @@ impl Chip8 {
             ; ret
         );
 
-        self.caches.add(block_pc, pc, asm.finalize().unwrap());
+        self.caches.add(block_pc, next_pc, asm.finalize().unwrap());
     }
 }
 
