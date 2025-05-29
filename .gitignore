@@ -2,6 +2,8 @@
 
 !.gitignore
 !Cargo.toml
+!LICENSE
+!LICENSE.LESSER
 !README.md
 
 !src/
