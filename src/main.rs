@@ -4,12 +4,14 @@ use kanal::{Sender, Receiver};
 
 use pixels::{Pixels, SurfaceTexture};
 
-use winit::event::*;
-use winit::window::WindowBuilder;
-use winit::event_loop::{ControlFlow, EventLoop};
 use winit::dpi::PhysicalSize;
+use winit::event::{DeviceEvent, ElementState, Event, RawKeyEvent, StartCause, WindowEvent};
+use winit::event_loop::EventLoop;
+use winit::keyboard::KeyCode;
+use winit::window::WindowBuilder;
 
 use std::thread;
+use std::time::{Duration, Instant};
 
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
@@ -33,173 +35,100 @@ struct ExecutionContext {
     pub recv: Receiver<Risp8Answer>,
     pub is_playing: bool,
     pub execution_method: ExecutionMethod,
-    pub numpad_keyboard: bool,
 
     pub update_window: bool,
 }
 
 impl ExecutionContext {
-    fn handle_keyboard(&mut self, key: &KeyboardInput) {
-        if self.numpad_keyboard {
-            self.keymap_numpad(key);
-        } else {
-            self.keymap_keyboard(key);
-        }
+    fn generate_window_title(&self) -> String {
+        let playing = if self.is_playing { "Running" } else { "Paused" };
+        let exec = match self.execution_method {
+            ExecutionMethod::Interpreter => "Interpreter",
+            ExecutionMethod::CachedInterpreter => "Cached interpreter",
+            ExecutionMethod::CachedInterpreter2 => "Cached interpreter 2",
+            ExecutionMethod::CachedInterpreter3 => "Cached interpreter 3",
+            ExecutionMethod::Jit => "Jit",
+        };
+
+        format!("{playing} - {exec} - risp8")
     }
 
-    /// Keymap on the keyboard.
-    fn keymap_keyboard(&mut self, key: &KeyboardInput) {
-        let k = key.virtual_keycode;
-        // println!("{:#X} {k:?}", key.scancode);
-        if k.is_some() {
-            match key.virtual_keycode.unwrap() {
-                VirtualKeyCode::V    => { self.send.send(Risp8Command::SetKey(0x0, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Key3 => { self.send.send(Risp8Command::SetKey(0x1, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Key4 => { self.send.send(Risp8Command::SetKey(0x2, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Key5 => { self.send.send(Risp8Command::SetKey(0x3, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::E    => { self.send.send(Risp8Command::SetKey(0x4, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::R    => { self.send.send(Risp8Command::SetKey(0x5, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::T    => { self.send.send(Risp8Command::SetKey(0x6, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::D    => { self.send.send(Risp8Command::SetKey(0x7, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::F    => { self.send.send(Risp8Command::SetKey(0x8, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::G    => { self.send.send(Risp8Command::SetKey(0x9, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::C    => { self.send.send(Risp8Command::SetKey(0xA, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::B    => { self.send.send(Risp8Command::SetKey(0xB, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Key6 => { self.send.send(Risp8Command::SetKey(0xC, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Y    => { self.send.send(Risp8Command::SetKey(0xD, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::H    => { self.send.send(Risp8Command::SetKey(0xE, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::N    => { self.send.send(Risp8Command::SetKey(0xF, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::I   => {
-                    self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::Interpreter)).unwrap();
-                    self.execution_method = ExecutionMethod::Interpreter;
-                    self.update_window = true;
-                },
-                VirtualKeyCode::K => {
-                    self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter)).unwrap();
-                    self.execution_method = ExecutionMethod::CachedInterpreter;
-                    self.update_window = true;
-                },
-                VirtualKeyCode::L => {
-                    self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter2)).unwrap();
-                    self.execution_method = ExecutionMethod::CachedInterpreter2;
-                    self.update_window = true;
-                },
-                VirtualKeyCode::M => {
-                    self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter3)).unwrap();
-                    self.execution_method = ExecutionMethod::CachedInterpreter3;
-                    self.update_window = true;
-                },
-                VirtualKeyCode::J => {
-                    self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::Jit)).unwrap();
-                    self.execution_method = ExecutionMethod::Jit;
-                    self.update_window = true;
-                },
-                VirtualKeyCode::S  => if key.state == ElementState::Pressed { self.send.send(Risp8Command::SingleStep).unwrap() },
-                VirtualKeyCode::P => {
-                    if key.state == ElementState::Pressed {
-                        if self.is_playing {
-                            self.send.send(Risp8Command::Pause).unwrap();
-                            self.is_playing = false;
-                        } else {
-                            self.send.send(Risp8Command::Play).unwrap();
-                            self.is_playing = true;
-                        }
-                        self.update_window = true;
+    fn handle_keyboard(&mut self, key: &RawKeyEvent) {
+        let k = key.physical_key;
+        let pressed = key.state == ElementState::Pressed;
+        // println!("{k:?} {pressed}");
+        match k {
+            // Chip8 key
+            KeyCode::KeyV   | KeyCode::Numpad0 => { self.send.send(Risp8Command::SetKey(0x0, pressed)).unwrap() },
+            KeyCode::Digit3 | KeyCode::Numpad7 => { self.send.send(Risp8Command::SetKey(0x1, pressed)).unwrap() },
+            KeyCode::Digit4 | KeyCode::Numpad8 => { self.send.send(Risp8Command::SetKey(0x2, pressed)).unwrap() },
+            KeyCode::Digit5 | KeyCode::Numpad9 => { self.send.send(Risp8Command::SetKey(0x3, pressed)).unwrap() },
+            KeyCode::KeyE   | KeyCode::Numpad4 => { self.send.send(Risp8Command::SetKey(0x4, pressed)).unwrap() },
+            KeyCode::KeyR   | KeyCode::Numpad5 => { self.send.send(Risp8Command::SetKey(0x5, pressed)).unwrap() },
+            KeyCode::KeyT   | KeyCode::Numpad6 => { self.send.send(Risp8Command::SetKey(0x6, pressed)).unwrap() },
+            KeyCode::KeyD   | KeyCode::Numpad1 => { self.send.send(Risp8Command::SetKey(0x7, pressed)).unwrap() },
+            KeyCode::KeyF   | KeyCode::Numpad2 => { self.send.send(Risp8Command::SetKey(0x8, pressed)).unwrap() },
+            KeyCode::KeyG   | KeyCode::Numpad3 => { self.send.send(Risp8Command::SetKey(0x9, pressed)).unwrap() },
+            KeyCode::KeyC   | KeyCode::NumpadDivide =>   { self.send.send(Risp8Command::SetKey(0xA, pressed)).unwrap() },
+            KeyCode::KeyB   | KeyCode::NumpadMultiply => { self.send.send(Risp8Command::SetKey(0xB, pressed)).unwrap() },
+            KeyCode::Digit6 | KeyCode::NumpadSubtract => { self.send.send(Risp8Command::SetKey(0xC, pressed)).unwrap() },
+            KeyCode::KeyY   | KeyCode::NumpadAdd =>      { self.send.send(Risp8Command::SetKey(0xD, pressed)).unwrap() },
+            KeyCode::KeyH   | KeyCode::NumpadEnter =>    { self.send.send(Risp8Command::SetKey(0xE, pressed)).unwrap() },
+            KeyCode::KeyN   | KeyCode::NumpadDecimal =>  { self.send.send(Risp8Command::SetKey(0xF, pressed)).unwrap() },
+            // Control
+            KeyCode::KeyI => {
+                self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::Interpreter)).unwrap();
+                self.execution_method = ExecutionMethod::Interpreter;
+                self.update_window = true;
+            },
+            KeyCode::KeyK => {
+                self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter)).unwrap();
+                self.execution_method = ExecutionMethod::CachedInterpreter;
+                self.update_window = true;
+            },
+            KeyCode::KeyL => {
+                self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter2)).unwrap();
+                self.execution_method = ExecutionMethod::CachedInterpreter2;
+                self.update_window = true;
+            },
+            KeyCode::KeyM => {
+                self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter3)).unwrap();
+                self.execution_method = ExecutionMethod::CachedInterpreter3;
+                self.update_window = true;
+            },
+            KeyCode::KeyJ => {
+                self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::Jit)).unwrap();
+                self.execution_method = ExecutionMethod::Jit;
+                self.update_window = true;
+            },
+            KeyCode::KeyS  => if pressed { self.send.send(Risp8Command::SingleStep).unwrap() },
+            KeyCode::KeyP => {
+                if pressed {
+                    if self.is_playing {
+                        self.send.send(Risp8Command::Pause).unwrap();
+                        self.is_playing = false;
+                    } else {
+                        self.send.send(Risp8Command::Play).unwrap();
+                        self.is_playing = true;
                     }
-                },
-                _ => (),
-            }
-        }
-    }
-
-    /// Keymap on the numpad.
-    fn keymap_numpad(&mut self, key: &KeyboardInput) {
-        let k = key.virtual_keycode;
-        // println!("{:#X} {k:?}", key.scancode);
-        if k.is_some() {
-            match key.virtual_keycode.unwrap() {
-                VirtualKeyCode::Numpad0 => { self.send.send(Risp8Command::SetKey(0x0, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Numpad7 => { self.send.send(Risp8Command::SetKey(0x1, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Numpad8 => { self.send.send(Risp8Command::SetKey(0x2, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Numpad9 => { self.send.send(Risp8Command::SetKey(0x3, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Numpad4 => { self.send.send(Risp8Command::SetKey(0x4, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Numpad5 => { self.send.send(Risp8Command::SetKey(0x5, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Numpad6 => { self.send.send(Risp8Command::SetKey(0x6, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Numpad1 => { self.send.send(Risp8Command::SetKey(0x7, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Numpad2 => { self.send.send(Risp8Command::SetKey(0x8, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Numpad3 => { self.send.send(Risp8Command::SetKey(0x9, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::NumpadDivide   => { self.send.send(Risp8Command::SetKey(0xA, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::NumpadMultiply => { self.send.send(Risp8Command::SetKey(0xB, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::NumpadSubtract => { self.send.send(Risp8Command::SetKey(0xC, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::NumpadAdd      => { self.send.send(Risp8Command::SetKey(0xD, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::NumpadEnter    => { self.send.send(Risp8Command::SetKey(0xE, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::Return         => { self.send.send(Risp8Command::SetKey(0xE, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::NumpadDecimal  => { self.send.send(Risp8Command::SetKey(0xF, key.state == ElementState::Pressed)).unwrap() },
-                VirtualKeyCode::I => {
-                    self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::Interpreter)).unwrap();
-                    self.execution_method = ExecutionMethod::Interpreter;
                     self.update_window = true;
-                },
-                VirtualKeyCode::K => {
-                    self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter)).unwrap();
-                    self.execution_method = ExecutionMethod::CachedInterpreter;
-                    self.update_window = true;
-                },
-                VirtualKeyCode::L => {
-                    self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter2)).unwrap();
-                    self.execution_method = ExecutionMethod::CachedInterpreter2;
-                    self.update_window = true;
-                },
-                VirtualKeyCode::M => {
-                    self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter3)).unwrap();
-                    self.execution_method = ExecutionMethod::CachedInterpreter3;
-                    self.update_window = true;
-                },
-                VirtualKeyCode::J => {
-                    self.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::Jit)).unwrap();
-                    self.execution_method = ExecutionMethod::Jit;
-                    self.update_window = true;
-                },
-                VirtualKeyCode::S  => if key.state == ElementState::Pressed { self.send.send(Risp8Command::SingleStep).unwrap() },
-                VirtualKeyCode::P => {
-                    if key.state == ElementState::Pressed {
-                        if self.is_playing {
-                            self.send.send(Risp8Command::Pause).unwrap();
-                            self.is_playing = false;
-                        } else {
-                            self.send.send(Risp8Command::Play).unwrap();
-                            self.is_playing = true;
-                        }
-                        self.update_window = true;
-                    }
-                },
-                _ => (),
-            }
+                }
+            },
+            _ => (),
         }
     }
 }
 
 fn print_usage_and_exit(exec: &str) -> ! {
-    println!("Usage: {exec} [--keymap-numpad] <ROM>");
+    println!("Usage: {exec} <ROM>");
     std::process::exit(1);
 }
 
 fn main() {
     let mut args = std::env::args();
     let exec = args.next().unwrap();
-    if args.len() == 0 || args.len() > 2 {
+    if args.len() != 1 {
         print_usage_and_exit(&exec);
-    }
-
-    let mut numpad_keyboard = false;
-    if args.len() == 2 {
-        let keymap = args.next().unwrap();
-        if keymap != "--keymap-numpad" {
-            println!("Unrecognized argument `{keymap}`");
-            print_usage_and_exit(&exec);
-        }
-
-        numpad_keyboard = true;
     }
 
     let romfile = args.next().unwrap();
@@ -209,11 +138,7 @@ fn main() {
             std::process::exit(1);
         });
 
-    thread::spawn(move || {
-        chip8.run();
-    });
-
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_title("risp8")
         .with_inner_size(PhysicalSize::new(640, 320))
@@ -231,44 +156,53 @@ fn main() {
         recv: chip8_out,
         is_playing: false,
         execution_method: ExecutionMethod::Interpreter,
-        numpad_keyboard,
 
         update_window: true, // To set the window title at the first event loop.
     };
 
+    thread::spawn(move || {
+        chip8.run();
+    });
+
     event_loop.run(move |event, _, flow| {
         while !ctx.recv.is_empty() {
             let Ok(answer) = ctx.recv.recv() else {
-                *flow = ControlFlow::Exit;
+                flow.set_exit();
                 return;
             };
 
             match answer {
-                Risp8Answer::Screen(screen) => chip8_screen_to_rgba(&screen, pixels.frame_mut()),
+                Risp8Answer::Screen(screen) => {
+                    chip8_screen_to_rgba(&screen, pixels.frame_mut());
+                    window.request_redraw();
+                },
                 _ => (), // TODO: sound.
             }
         }
 
         if ctx.update_window {
-            let playing = if ctx.is_playing { "Running" } else { "Paused" };
-            let exec = match ctx.execution_method {
-                ExecutionMethod::Interpreter => "Interpreter",
-                ExecutionMethod::CachedInterpreter => "Cached interpreter",
-                ExecutionMethod::CachedInterpreter2 => "Cached interpreter 2",
-                ExecutionMethod::CachedInterpreter3 => "Cached interpreter 3",
-                ExecutionMethod::Jit => "Jit",
-            };
-
-            window.set_title(&format!("{playing} - {exec} - risp8"));
+            window.set_title(&ctx.generate_window_title());
             ctx.update_window = false;
         }
 
         match event {
+            Event::NewEvents(cause) => {
+                match cause {
+                    StartCause::ResumeTimeReached { .. } => {
+                        if ctx.is_playing && ctx.send.send(Risp8Command::GetScreen).is_err() {
+                            flow.set_exit();
+                            return;
+                        }
+                    },
+                    _ => (),
+                }
+            },
             Event::WindowEvent { event: evt, .. } => {
                 match evt {
                     WindowEvent::CloseRequested => {
                         ctx.send.send(Risp8Command::Exit).unwrap();
-                        *flow = ControlFlow::Exit;
+                        flow.set_exit();
+                        return;
                     },
                     WindowEvent::Resized(size) => {
                         let _ = pixels.resize_surface(size.width, size.height);
@@ -276,16 +210,19 @@ fn main() {
                     _ => (),
                 }
             },
-            Event::MainEventsCleared => {
-                if ctx.send.send(Risp8Command::GetScreen).is_err() {
-                    *flow = ControlFlow::Exit;
-                }
-                pixels.render().unwrap();
-            },
             Event::DeviceEvent { event: DeviceEvent::Key(key), .. } => {
                 ctx.handle_keyboard(&key);
             },
+            Event::RedrawRequested(_) => {
+                window.pre_present_notify();
+                pixels.render().unwrap();
+            },
+            Event::AboutToWait => if ctx.is_playing {
+                flow.set_wait_until(Instant::now() + Duration::from_millis(16));
+            } else {
+                flow.set_wait();
+            },
             _ => (),
         }
-    });
+    }).unwrap();
 }
