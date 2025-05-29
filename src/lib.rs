@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use kanal::{Receiver, Sender, unbounded};
+
 #[cfg(target_arch = "x86_64")]
 mod cache;
 mod interpreter;
@@ -24,7 +26,7 @@ pub struct Chip8 {
     memory: [u8; 4096],
     delay: u8,
     sound: u8,
-    pub screen: [[bool; 64]; 32],
+    screen: [[bool; 64]; 32],
     keys: [bool; 16],
 
     last_key: u8,
@@ -32,13 +34,21 @@ pub struct Chip8 {
 
     #[cfg(target_arch = "x86_64")]
     caches: Caches,
+
+    channel_in: Receiver<Risp8Command>,
+    channel_out: Sender<Risp8Answer>,
+    play: bool,
+    execution_method: ExecutionMethod,
 }
 
 impl Chip8 {
     /// Creates a new Chip8 context.
     ///
     /// `rom` is the path to the ROM to open.
-    pub fn new(rom: &str) -> Result<Chip8, String> {
+    pub fn new(rom: &str) -> Result<(Self, Sender<Risp8Command>, Receiver<Risp8Answer>), String> {
+        let (channel_out, user_in) = unbounded();
+        let (user_out, channel_in) = unbounded();
+
         let mut core = Chip8 {
             SP: 0,
             PC: 512,
@@ -56,10 +66,56 @@ impl Chip8 {
 
             #[cfg(target_arch = "x86_64")]
             caches: Caches::new(),
+
+            channel_in,
+            channel_out,
+            play: false,
+            execution_method: ExecutionMethod::Interpreter,
         };
+
         core.load_font();
         core.load_rom(rom)?;
-        Ok(core)
+
+        Ok((core, user_out, user_in))
+    }
+
+    /// The method to call to start emulation.
+    ///
+    /// This method is meant to run concurrently with the rest of the program (GUI, ...).
+    /// Use the channels to send commands to control the core and receive answers from it.
+    pub fn run(&mut self) {
+        loop {
+            if self.handle_channels() {
+                break;
+            }
+
+            if self.play {
+                match self.execution_method {
+                    ExecutionMethod::Interpreter => self.interpreter(),
+                    ExecutionMethod::Jit => self.jit(),
+                }
+            }
+        }
+    }
+
+    /// Returns true if the emulator has to be stopped.
+    fn handle_channels(&mut self) -> bool {
+        while !self.channel_in.is_empty() {
+            let Ok(cmd) = self.channel_in.recv() else {
+                return true;
+            };
+
+            match cmd {
+                Risp8Command::SetKey(key, pressed) => self.set_key(key, pressed),
+                Risp8Command::GetScreen => self.channel_out.send(Risp8Answer::Screen(self.screen)).unwrap(),
+                Risp8Command::Play => self.play = true,
+                Risp8Command::Pause => self.play = false,
+                Risp8Command::SetExecutionMethod(method) => self.execution_method = method,
+                Risp8Command::Exit => return true,
+            }
+        }
+
+        false
     }
 
     fn load_rom(&mut self, filename: &str) -> Result<usize, String> {
@@ -71,6 +127,17 @@ impl Chip8 {
         match input.read(&mut self.memory[512..4096]) {
             Ok(size) => Ok(size),
             Err(e) => Err(format!("Could not read from ROM: {}", e)),
+        }
+    }
+
+    /// Sets a key as pressed or unpressed.
+    ///
+    /// `key` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
+    /// `pressed` = true if pressed, false if released.
+    fn set_key(&mut self, key: usize, pressed: bool) {
+        if key <= 0xF {
+            self.keys[key] = pressed;
+            self.last_key = key as u8;
         }
     }
 
@@ -97,17 +164,6 @@ impl Chip8 {
 
     fn clear_screen(&mut self) {
         self.screen = [[false; 64]; 32];
-    }
-
-    /// Sets a key as pressed or unpressed.
-    ///
-    /// `key` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
-    /// `pressed` = true if pressed, false if released.
-    pub fn set_key(&mut self, key: usize, pressed: bool) {
-        if key <= 0xF {
-            self.keys[key] = pressed;
-            self.last_key = key as u8;
-        }
     }
 
     fn draw(&mut self, x: usize, y: usize, n: u8) {
@@ -165,4 +221,37 @@ impl<T> Address for T {
     fn address(&self, offset: usize) -> usize {
         self as *const T as usize + offset
     }
+}
+
+/// Commands to send to the core.
+#[derive(Debug)]
+pub enum Risp8Command {
+    /// Sets a key as pressed or unpressed.
+    ///
+    /// `usize` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
+    /// `bool` = true if pressed, false if released.
+    SetKey(usize, bool),
+    /// Request to get the current state of the screen.
+    GetScreen,
+    /// Resume emulation.
+    Play,
+    /// Pause emulation.
+    Pause,
+    /// Set the execution method.
+    SetExecutionMethod(ExecutionMethod),
+    /// Request to end the [run](Chip8::run) method.
+    Exit,
+}
+
+/// Specifies which method to use to execute instructions.
+#[derive(Debug)]
+pub enum ExecutionMethod {
+    Interpreter,
+    Jit,
+}
+
+/// Answers from the core.
+#[derive(Debug)]
+pub enum Risp8Answer {
+    Screen([[bool; 64]; 32]),
 }
