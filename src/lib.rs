@@ -17,11 +17,14 @@ pub struct Chip8 {
 	keys: [bool; 16],
 	
 	last_key: u8,
+	clockDelay: f64,
+	decDelay: f64,
+	instructionCount: usize,
 	pub rom_opened: bool,
 }
 
 impl Chip8 {
-	pub fn new(rom: &str) -> Result<Chip8, String> {
+	pub fn new(rom: &str, freq: usize) -> Result<Chip8, String> {
 		let mut core = Chip8 {
 			SP: 0,
 			PC: 512,
@@ -35,6 +38,9 @@ impl Chip8 {
 			keys: [false; 16],
 			
 			last_key: 255,
+			clockDelay: 1.0 / freq as f64,
+			decDelay: freq as f64 / 60.0,
+			instructionCount: 0,
 			rom_opened: false,
 		};
 		core.load_font();
@@ -317,8 +323,19 @@ impl Chip8 {
 			_ => println!("Unknown opcode {}", opcode),
 		};
 		
-		// TODO: timer at 60Hz
-		// self.delay -= 1;
-		// self.sound -= 1;
+		self.instructionCount += 1;
+		if self.instructionCount as f64 >= self.decDelay {
+			if self.delay > 0 {
+				self.delay -= 1;
+			}
+
+			if self.sound > 0 {
+				// TODO: play sound
+				self.sound -= 1;
+			}
+			self.instructionCount = 0;
+		}
+
+		std::thread::sleep(std::time::Duration::from_secs_f64(self.clockDelay));
 	}
 }
