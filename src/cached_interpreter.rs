@@ -31,7 +31,7 @@ pub(super) struct InstructionCache {
 /// Converts the given Chip8 address to its instruction cache index.
 #[inline(always)]
 pub const fn addr_to_index(addr: u16) -> usize {
-    (addr - Chip8::INITIAL_PC) as usize
+    addr as usize - State::INITIAL_PC
 }
 
 impl Chip8 {
