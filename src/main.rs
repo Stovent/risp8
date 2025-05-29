@@ -15,19 +15,17 @@ const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
 
 fn main() {
-    let freq = 10000u64;
-    let chip8 = match Chip8::new("ROM/MAZE.ch8", freq as usize) {
-        Ok(c) => c,
-        Err(e) => {
-            println!("{}", e);
-            return;
-        }
-    };
+    let freq = 1000u64;
+    let chip8 = Chip8::new("ROM/PONG.ch8", freq as usize)
+        .unwrap_or_else(|e| {
+            println!("Failed to open ROM: {}", e);
+            std::process::exit(1);
+        });
     let chip8_thread = Arc::new(Mutex::new(chip8));
-    let chip8_gui = chip8_thread.clone();
+    let chip8_gui = Arc::clone(&chip8_thread);
 
     let run_thread = Arc::new(Mutex::new(true));
-    let run_gui = run_thread.clone();
+    let run_gui = Arc::clone(&run_thread);
 
     let _thread_join = thread::spawn(move || {
         while *run_thread.lock().unwrap() {
@@ -40,7 +38,7 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("risp8")
-        .with_inner_size(PhysicalSize::new(640, 320))
+        .with_inner_size(PhysicalSize::<u32>::new(640, 320))
         .build(&event_loop)
         .unwrap();
 
