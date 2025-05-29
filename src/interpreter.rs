@@ -1,9 +1,11 @@
-use crate::{Chip8, CLOCK_DELAY};
+use crate::Chip8;
 
 use rand::Rng;
 
+use std::time::{Duration, Instant};
+
 impl Chip8 {
-    /// Executes a single instruction using the interpreter mode.
+    /// Executes a single instruction using the interpreter.
     pub fn interpreter(&mut self) {
         let opcode: u16 = ((self.memory[self.PC as usize] as u16) << 8) | (self.memory[self.PC as usize + 1] as u16);
         #[cfg(debug_assertions)]
@@ -214,8 +216,7 @@ impl Chip8 {
             _ => println!("Unknown opcode {}", opcode),
         };
 
-        self.timer += self.speed_delay;
-        while self.timer >= CLOCK_DELAY {
+        if self.timer.elapsed() >= Duration::from_micros(16666) {
             if self.delay > 0 {
                 self.delay -= 1;
             }
@@ -224,14 +225,7 @@ impl Chip8 {
                 // TODO: play sound
                 self.sound -= 1;
             }
-            self.timer -= CLOCK_DELAY;
+            self.timer = Instant::now();
         }
-    }
-
-    /// Executes a single instruction using the interpreter mode, and waits for 1 / `freq` second before returning.
-    pub fn interpreter_delay(&mut self) {
-        self.interpreter();
-
-        std::thread::sleep(std::time::Duration::from_secs_f64(self.speed_delay));
     }
 }

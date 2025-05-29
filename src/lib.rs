@@ -10,6 +10,7 @@ use cache::Caches;
 
 use std::fs::File;
 use std::io::Read;
+use std::time::Instant;
 
 const CLOCK_DELAY: f64 = 1.0 / 60.0;
 
@@ -27,8 +28,7 @@ pub struct Chip8 {
     keys: [bool; 16],
 
     last_key: u8,
-    speed_delay: f64,
-    timer: f64,
+    timer: Instant,
 
     caches: Caches,
 }
@@ -37,8 +37,7 @@ impl Chip8 {
     /// Creates a new Chip8 context.
     ///
     /// `rom` is the path to the ROM to open.
-    /// `freq` is the speed of emulation, in instructions per seconds (500 is a good default value).
-    pub fn new(rom: &str, freq: usize) -> Result<Chip8, String> {
+    pub fn new(rom: &str) -> Result<Chip8, String> {
         let mut core = Chip8 {
             SP: 0,
             PC: 512,
@@ -52,8 +51,7 @@ impl Chip8 {
             keys: [false; 16],
 
             last_key: 255,
-            speed_delay: 1.0 / freq as f64,
-            timer: 0.0,
+            timer: Instant::now(),
 
             caches: Caches::new(),
         };

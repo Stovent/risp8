@@ -7,38 +7,41 @@ use winit::dpi::PhysicalSize;
 
 use pixels::*;
 
-use std::time::Duration;
-use std::sync::{Arc, Mutex};
+use std::cell::UnsafeCell;
+use std::sync::Arc;
 use std::thread;
 
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
 
+struct Obj<T>(UnsafeCell<T>);
+unsafe impl<T> std::marker::Sync for Obj<T> {}
+
 fn main() {
-    let freq = 1000u64;
-    let chip8 = Chip8::new("ROM/PONG.ch8", freq as usize)
+    let chip8 = Chip8::new("ROM/PONG.ch8")
         .unwrap_or_else(|e| {
             println!("Failed to open ROM: {}", e);
             std::process::exit(1);
         });
-    let chip8_thread = Arc::new(Mutex::new(chip8));
+    let chip8_thread = Arc::new(Obj(UnsafeCell::new(chip8)));
     let chip8_gui = Arc::clone(&chip8_thread);
 
-    let run_thread = Arc::new(Mutex::new(true));
+    let run_thread = Arc::new(Obj(UnsafeCell::new(true)));
     let run_gui = Arc::clone(&run_thread);
 
     let _thread_join = thread::spawn(move || {
-        while *run_thread.lock().unwrap() {
-            chip8_thread.lock().unwrap().jit();
-            // chip8_thread.lock().unwrap().interpreter();
-            thread::sleep(Duration::from_micros(1_000_000 / freq));
+        unsafe {
+            while *run_thread.0.get() {
+                (*chip8_thread.0.get()).jit();
+                // (*chip8_thread.0.get()).interpreter();
+            }
         }
     });
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("risp8")
-        .with_inner_size(PhysicalSize::<u32>::new(640, 320))
+        .with_inner_size(PhysicalSize::new(640, 320))
         .build(&event_loop)
         .unwrap();
 
@@ -51,16 +54,21 @@ fn main() {
     event_loop.run(move |event, _, flow| {
         match event {
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-                *run_gui.lock().unwrap() = false;
-                *flow = ControlFlow::Exit;
+                unsafe {
+                    *run_gui.0.get() = false;
+                    *flow = ControlFlow::Exit;
+                }
             },
             Event::MainEventsCleared => {
-                draw(&chip8_gui.lock().unwrap().screen, pixels.get_frame());
-                pixels.render().unwrap();
-                thread::sleep(Duration::from_micros(16666));
+                unsafe {
+                    draw(&(*chip8_gui.0.get()).screen, pixels.get_frame());
+                    pixels.render().unwrap();
+                }
             },
             Event::DeviceEvent { event: DeviceEvent::Key(key), .. } => {
-                handle_keyboard(&mut chip8_gui.lock().unwrap(), &key);
+                unsafe {
+                    handle_keyboard(chip8_gui.0.get().as_mut().unwrap(), &key);
+                }
             },
             _ => (),
         }
