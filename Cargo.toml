@@ -1,5 +1,5 @@
 [package]
-name = "Risp8"
+name = "risp8"
 version = "0.1.0"
 authors = ["Stovent <StoventTAS@gmail.com>"]
 edition = "2018"
