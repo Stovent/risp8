@@ -17,7 +17,7 @@ impl Cache {
         }
     }
 
-    pub fn execute(&mut self) -> u32 {
+    pub fn run(&mut self) -> u32 {
         log(format!("Executing cache at {:#X} (size {}, {:?})", self.pc, self.code.len(), &self.code[0] as *const u8));
         unsafe {
             let mut code = MmapMut::map_anon(self.code.len()).expect("Failed to map cache.");
@@ -29,52 +29,13 @@ impl Cache {
             ret
         }
     }
+}
 
-    pub fn add_mem_imm8(&mut self, addr: u32, imm: u8) {
-        log(format!("add [{:#X}], {}", addr, imm));
-        self.push_8(0x80);
-        self.push_8(0x05);
-        self.push_32(addr);
-        self.push_8(imm);
-    }
-
-    pub fn mov_mem_imm8(&mut self, addr: u32, imm: u8) {
-        log(format!("mov [{:#X}], {}", addr, imm));
-        self.push_8(0xC6);
-        self.push_8(0x05);
-        self.push_32(addr);
-        self.push_8(imm);
-    }
-
-    pub fn mov_reg_imm32(&mut self, reg: X86Reg, value: u32) {
-        log(format!("mov {:?}, {:#X}", reg, value));
-        self.push_8(0xB8 + reg as u8);
-        self.push_32(value);
-    }
-
-    pub fn mov_mem_eax(&mut self, addr: u32) {
-        log(format!("mov [{:#X}], eax", addr));
-        self.push_8(0xA3);
-        self.push_32(addr);
-    }
-
-    pub fn mov_eax_mem(&mut self, addr: u32) {
-        log(format!("mov eax, [{:#X}]", addr));
-        self.push_8(0xA1);
-        self.push_32(addr);
-    }
-
-    pub fn ret(&mut self, value: u32) {
-        self.mov_reg_imm32(X86Reg::EAX, value);
-        log_str("ret");
-        self.push_8(0xC3);
-    }
-
+impl ICache for Cache {
     fn push_8(&mut self, d: u8) {
         self.code.push(d);
     }
 
-    /// Little-endian
     fn push_32(&mut self, d: u32) {
         self.push_8(d as u8);
         self.push_8((d >> 8) as u8);
@@ -82,6 +43,8 @@ impl Cache {
         self.push_8((d >> 24) as u8);
     }
 }
+
+impl X86Emitter<Cache> for Cache {}
 
 pub struct Caches {
     caches: Vec<Cache>,
@@ -95,11 +58,7 @@ impl Caches {
     }
 
     pub fn get(&mut self, pc: u16) -> Option<&mut Cache> {
-        if let Some(cache) = self.caches.iter_mut().find(|el| el.pc == pc) {
-            Some(cache)
-        } else {
-            None
-        }
+        self.caches.iter_mut().find(|el| el.pc == pc)
     }
 
     pub fn get_or_create(&mut self, pc: u16) -> &mut Cache {

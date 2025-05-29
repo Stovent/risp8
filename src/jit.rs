@@ -1,5 +1,6 @@
 use crate::Chip8;
 use crate::utils::*;
+use crate::x86::*;
 
 #[derive(Debug)]
 pub enum Interrupts {
@@ -26,7 +27,7 @@ impl Chip8 {
     pub fn jit(&mut self) {
         loop {
             if let Some(cache) = self.caches.get(self.PC) {
-                let ret = cache.execute();
+                let ret = cache.run();
                 match Interrupts::from(ret >> 16) {
                     Interrupts::UseInterpreter => {
                         self.PC = ret as u16;

@@ -2,6 +2,10 @@
 name = "risp8"
 version = "0.1.0"
 authors = ["Stovent <StoventTAS@gmail.com>"]
+description = "A Chip8 interpreter and JIT compiler in Rust, with both a library and an executable."
+repository = "https://github.com/Stovent/risp8"
+keywords = ["chip8", "emulator", "interpreter", "jit"]
+categories = ["compilers", "emulators"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
