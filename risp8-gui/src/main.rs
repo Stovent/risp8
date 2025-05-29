@@ -6,7 +6,7 @@ use pixels::{Pixels, SurfaceTexture};
 use risp8::{Chip8, ExecutionMethod, Receiver, Risp8Answer, Risp8Command, Sender, State};
 
 use winit::application::ApplicationHandler;
-use winit::dpi::PhysicalSize;
+use winit::dpi::LogicalSize;
 use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
@@ -126,7 +126,7 @@ impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window_attributes = Window::default_attributes()
             .with_title("risp8")
-            .with_inner_size(PhysicalSize::new(640, 320));
+            .with_inner_size(LogicalSize::new(640, 320));
 
         let window = event_loop.create_window(window_attributes).unwrap();
         let pixels = new_pixels(&window);
