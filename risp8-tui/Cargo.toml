@@ -8,6 +8,6 @@ description = "TUI frontend for risp8"
 repository = "https://github.com/Stovent/risp8"
 
 [dependencies]
-crossterm = "0.27.0"
-ratatui = "0.27.0"
+crossterm = "0.29.0"
+ratatui = "0.29.0"
 risp8 = { path = "../risp8" }
