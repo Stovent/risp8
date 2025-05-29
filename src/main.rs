@@ -14,11 +14,23 @@ use std::thread;
 const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
 
+/// Copies the chip8 screen to a RGBA buffer.
+fn chip8_screen_to_rgba(screen: &[[bool; 64]; 32], rgba: &mut [u8]) {
+    for (i, pixel) in rgba.chunks_exact_mut(4).enumerate() {
+        let y = i / 64;
+        let x = i % 64;
+        pixel.copy_from_slice(if screen[y][x] {
+            &WHITE
+        } else {
+            &BLACK
+        });
+    }
+}
+
 /// The context used to run the app.
 struct ExecutionContext {
     pub send: Sender<Risp8Command>,
     pub recv: Receiver<Risp8Answer>,
-    pub screen: [[bool; 64]; 32],
     pub is_playing: bool,
     pub execution_method: ExecutionMethod,
     pub numpad_keyboard: bool,
@@ -27,18 +39,6 @@ struct ExecutionContext {
 }
 
 impl ExecutionContext {
-    fn chip8_to_pixels(&self, pixels: &mut [u8]) {
-        for (i, pixel) in pixels.chunks_exact_mut(4).enumerate() {
-            let y = i / 64;
-            let x = i % 64;
-            pixel.copy_from_slice(if self.screen[y][x] {
-                &WHITE
-            } else {
-                &BLACK
-            });
-        }
-    }
-
     fn handle_keyboard(&mut self, key: &KeyboardInput) {
         if self.numpad_keyboard {
             self.keymap_numpad(key);
@@ -245,7 +245,7 @@ fn main() {
             };
 
             match answer {
-                Risp8Answer::Screen(s) => ctx.screen = s,
+                Risp8Answer::Screen(screen) => chip8_screen_to_rgba(&screen, pixels.frame_mut()),
                 _ => (), // TODO: sound.
             }
         }
@@ -281,7 +281,6 @@ fn main() {
                 if ctx.send.send(Risp8Command::GetScreen).is_err() {
                     *flow = ControlFlow::Exit;
                 }
-                ctx.chip8_to_pixels(pixels.frame_mut());
                 pixels.render().unwrap();
             },
             Event::DeviceEvent { event: DeviceEvent::Key(key), .. } => {
