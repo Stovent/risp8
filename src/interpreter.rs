@@ -1,4 +1,4 @@
-use crate::*;
+use crate::{Chip8, CLOCK_DELAY};
 
 use rand::Rng;
 
