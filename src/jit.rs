@@ -87,20 +87,20 @@ impl Chip8 {
                 0x6 => {
                     let x = ((opcode >> 8) & 0xF) as usize;
                     let kk = (opcode & 0xFF) as u8;
-                    cache.mov_mem_imm8(arr8_to_u32(&self.V, x), kk);
+                    cache.mov_mem_imm8(self.V.address_u32(x as isize), kk);
                 },
                 0x7 => {
                     let x = ((opcode >> 8) & 0xF) as usize;
                     let kk = (opcode & 0xFF) as u8;
-                    cache.add_mem_imm8(arr8_to_u32(&self.V, x), kk);
+                    cache.add_mem_imm8(self.V.address_u32(x as isize), kk);
                 },
                 0x8 => {
                     match opcode & 0xF00F {
                         0x8000 => {
                             let x = ((opcode >> 8) & 0xF) as usize;
                             let y = ((opcode >> 4) & 0xF) as usize;
-                            cache.mov_eax_mem(arr8_to_u32(&self.V, x));
-                            cache.mov_mem_eax(arr8_to_u32(&self.V, y));
+                            cache.mov_eax_mem(self.V.address_u32(y as isize));
+                            cache.mov_mem_eax(self.V.address_u32(x as isize));
                         },
                         0x8001 => {
                             cache.ret(Interrupts::make(Interrupts::UseInterpreter, self.PC - 2));
@@ -215,17 +215,17 @@ impl Chip8 {
             };
         }
 
-        self.dec_timer_ms += self.clock_delay;
-        while self.dec_timer_ms >= 1000.0 / 60.0 {
-            if self.delay > 0 {
-                self.delay -= 1;
-            }
+        // self.timer += self.clock_delay;
+        // while self.timer >= 1000.0 / 60.0 {
+        //     if self.delay > 0 {
+        //         self.delay -= 1;
+        //     }
 
-            if self.sound > 0 {
-                // TODO: play sound
-                self.sound -= 1;
-            }
-            self.dec_timer_ms -= 1000.0 / 60.0;
-        }
+        //     if self.sound > 0 {
+        //         // TODO: play sound
+        //         self.sound -= 1;
+        //     }
+        //     self.timer -= 1000.0 / 60.0;
+        // }
     }
 }

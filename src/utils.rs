@@ -14,9 +14,15 @@ pub fn breakpoint() {
     std::io::stdin().read_line(&mut str);
 }
 
-pub fn arr8_to_u32(arr: &[u8; 16], offset: usize) -> u32 {
-    unsafe {
-        let ptr = arr.as_ptr();
-        ptr.offset(offset as isize) as u32
+pub trait Address {
+    fn address_u32(&mut self, offset: isize) -> u32;
+}
+
+impl<T, const N: usize> Address for [T; N] {
+    fn address_u32(&mut self, offset: isize) -> u32 {
+        unsafe {
+            let ptr = self.as_ptr();
+            ptr.offset(offset as isize) as u32
+        }
     }
 }
