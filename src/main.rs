@@ -104,7 +104,7 @@ fn main() {
                 if ctx.send.send(Risp8Command::GetScreen).is_err() {
                     *flow = ControlFlow::Exit;
                 }
-                chip8_to_pixels(&ctx.screen, pixels.get_frame_mut());
+                chip8_to_pixels(&ctx.screen, pixels.frame_mut());
                 pixels.render().unwrap();
             },
             Event::DeviceEvent { event: DeviceEvent::Key(key), .. } => {

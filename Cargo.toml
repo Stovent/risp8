@@ -12,6 +12,6 @@ categories = ["compilers", "emulators"]
 [dependencies]
 dynasmrt = "2.0.0"
 kanal = "0.1.0-pre8"
-pixels = "0.11.0"
+pixels = "0.13.0"
 rand = "0.7.0"
 winit = "0.28.1"
