@@ -22,6 +22,7 @@ impl From<u32> for Interrupts {
 }
 
 impl Chip8 {
+    /// Executes indefinitely using the JIT compiler.
     pub fn jit(&mut self) {
         loop {
             if let Some(cache) = self.caches.get(self.PC) {

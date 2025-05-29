@@ -12,6 +12,7 @@ use cache::Caches;
 use std::fs::File;
 use std::io::Read;
 
+/// Chip8 context.
 pub struct Chip8 {
     SP: usize,
     PC: u16,
@@ -32,6 +33,10 @@ pub struct Chip8 {
 }
 
 impl Chip8 {
+    /// Creates a new Chip8 context.
+    ///
+    /// `rom` is the path to the ROM to open.
+    /// `freq` is the speed of emulation, in instructions per seconds (500 is a good default value).
     pub fn new(rom: &str, freq: usize) -> Result<Chip8, String> {
         let mut core = Chip8 {
             SP: 0,
@@ -96,6 +101,10 @@ impl Chip8 {
         self.screen = [false; 2048];
     }
 
+    /// Sets a key as pressed or unpressed.
+    ///
+    /// `key` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
+    /// `pressed` = true if pressed, false if released.
     pub fn set_key(&mut self, key: usize, pressed: bool) {
         if key > 15 {
             return;

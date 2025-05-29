@@ -3,6 +3,7 @@ use crate::Chip8;
 use rand::Rng;
 
 impl Chip8 {
+    /// Executes a single instruction using the interpreter mode.
     pub fn interpreter(&mut self) {
         let opcode: u16 = ((self.memory[self.PC as usize] as u16) << 8) | (self.memory[self.PC as usize + 1] as u16);
         println!("opcode {:04X} at {:#X}", opcode, self.PC);
