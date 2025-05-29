@@ -54,11 +54,23 @@ impl Chip8 {
 
         let timer = timer as *const ();
         let this = self as *mut Chip8;
+
+        #[cfg(target_os = "windows")]
         dynasm!(asm
             ; .arch x64
             ; mov rax, QWORD timer as i64
             ; mov rcx, QWORD this as i64
             ; call rax
+        );
+
+        #[cfg(not(target_os = "windows"))]
+        dynasm!(asm
+            ; .arch x64
+            ; mov rax, QWORD timer as i64
+            ; push rdi
+            ; mov rdi, QWORD this as i64
+            ; call rax
+            ; pop rdi
         );
 
         'outer: loop {
