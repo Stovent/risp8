@@ -25,7 +25,7 @@ impl From<u32> for Interrupts {
 impl Chip8 {
     /// Executes indefinitely using the JIT compiler.
     pub fn jit(&mut self) {
-        loop {
+        // loop {
             if let Some(cache) = self.caches.get(self.PC) {
                 let ret = cache.run();
                 match Interrupts::from(ret >> 16) {
@@ -39,7 +39,7 @@ impl Chip8 {
                 self.compile_block();
                 self.PC = pc;
             }
-        }
+        // }
     }
 
     fn compile_block(&mut self) {

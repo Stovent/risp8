@@ -226,6 +226,11 @@ impl Chip8 {
             }
             self.timer -= CLOCK_DELAY;
         }
+    }
+
+    /// Executes a single instruction using the interpreter mode, and waits for 1 / `freq` second before returning.
+    pub fn interpreter_delay(&mut self) {
+        self.interpreter();
 
         std::thread::sleep(std::time::Duration::from_secs_f64(self.speed_delay));
     }
