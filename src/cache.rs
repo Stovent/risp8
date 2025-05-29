@@ -103,6 +103,7 @@ impl Caches {
     }
 
     pub fn get_or_create(&mut self, pc: u16) -> &mut Cache {
+        // TODO: remove unsafe when new borrow checker is available.
         unsafe {
             let self1 = (self as *mut Self).as_mut().unwrap();
             if let Some(cache) = self.get(pc) {
