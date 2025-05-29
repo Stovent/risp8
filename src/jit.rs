@@ -84,9 +84,23 @@ impl Chip8 {
                         );
                     },
                     0x00EE => {
+                        let sp = self.SP.address(0);
+                        let stack = self.stack.address(0);
                         dynasm!(asm
                             ; .arch x64
+                            ; mov rdx, QWORD sp as i64
+                            ; cmp QWORD [rdx], 0
+                            ; ja >lbl
                             ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                            ; ret
+                            ; lbl:
+                            ; dec QWORD [rdx]
+                            ; mov rax, QWORD [rdx]
+                            ; shl rax, 1
+                            ; mov rcx, QWORD stack as i64
+                            ; add rcx, rax
+                            ; mov eax, DWORD Interrupts::make(Interrupts::Jump, 0) as i32
+                            ; mov ax, WORD [rcx]
                         );
                         break 'outer;
                     },
@@ -100,9 +114,25 @@ impl Chip8 {
                     break 'outer;
                 },
                 0x2 => {
+                    let sp = self.SP.address(0);
+                    let stack = self.stack.address(0);
+                    let nnn = opcode.nnn();
                     dynasm!(asm
                         ; .arch x64
+                        ; mov rdx, QWORD sp as i64
+                        ; mov rax, QWORD [rdx]
+                        ; cmp rax, 15
+                        ; jb >lbl
                         ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                        ; ret
+                        ; lbl:
+                        ; shl rax, 1
+                        ; mov rcx, QWORD stack as i64
+                        ; add rcx, rax
+                        ; mov WORD [rcx], (pc + 2) as i16
+                        ; inc QWORD [rdx]
+                        ; mov eax, DWORD Interrupts::make(Interrupts::Jump, 0) as i32
+                        ; mov ax, WORD nnn as i16
                     );
                     break 'outer;
                 },
