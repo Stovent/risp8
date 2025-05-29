@@ -4,7 +4,7 @@ use crossterm::ExecutableCommand;
 use crossterm::event::{self, KeyCode::Char, KeyEventKind};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, window_size};
 
-use risp8::{Chip8, Receiver, Risp8Answer, Risp8Command, Screen, Sender, State, DEFAULT_SCREEN};
+use risp8::{Chip8, ExecutionMethod, Receiver, Risp8Answer, Risp8Command, Screen, Sender, State, DEFAULT_SCREEN};
 
 use ratatui::{Frame, Terminal, TerminalOptions, Viewport};
 use ratatui::backend::CrosstermBackend;
@@ -15,7 +15,8 @@ use ratatui::widgets::{Block, canvas::{Canvas, Rectangle}};
 pub struct TuiApp {
     marker: Marker,
     screen: Screen,
-    play: bool,
+    is_playing: bool,
+    execution_method: ExecutionMethod,
 }
 
 impl TuiApp {
@@ -23,7 +24,8 @@ impl TuiApp {
         Self {
             marker: Marker::Block,
             screen: DEFAULT_SCREEN,
-            play: false,
+            is_playing: false,
+            execution_method: ExecutionMethod::Interpreter,
         }
     }
 
@@ -71,15 +73,21 @@ impl TuiApp {
     }
 
     fn ui(&self, frame: &mut Frame) {
-        let mut block = Block::bordered();
-        block = if self.play {
-            block.title("Running")
-        } else {
-            block.title("Paused")
+        let playing = if self.is_playing { "Running" } else { "Paused" };
+        let exec = match self.execution_method {
+            ExecutionMethod::Interpreter => "Interpreter",
+            ExecutionMethod::CachedInterpreter => "Cached Interpreter",
+            ExecutionMethod::CachedInterpreter2 => "Cached Interpreter 2",
+            ExecutionMethod::CachedInterpreter3 => "Cached Interpreter 3",
+            ExecutionMethod::Jit => "JIT",
         };
+        let screen_title = format!("{playing} | {exec}");
+
+        let screen_block = Block::bordered()
+            .title(screen_title);
 
         let canvas: Canvas<'_, _> = Canvas::default()
-            .block(block)
+            .block(screen_block)
             .x_bounds([0.0, State::SCREEN_WIDTH as f64])
             .y_bounds([0.0, State::SCREEN_HEIGHT as f64])
             .marker(self.marker)
@@ -114,9 +122,9 @@ impl TuiApp {
         };
     }
 
-    /// Returns true when exit is requested.
+    /// Returns `Ok(true)` when exit is requested.
     fn handle_keyboard(&mut self, chip8_in: &Sender<Risp8Command>) -> Result<bool, std::io::Error> {
-        if event::poll(std::time::Duration::from_millis(30))? {
+        if event::poll(std::time::Duration::from_millis(16))? {
             if let event::Event::Key(key) = event::read()? {
                 if key.kind != KeyEventKind::Repeat {
                     let pressed = key.kind == KeyEventKind::Press;
@@ -147,14 +155,35 @@ impl TuiApp {
                         // Control keys are treated when pressed, not released.
                         match key.code {
                             Char('q') => return Ok(true),
-                            Char('p') => if self.play {
+                            Char('p') => if self.is_playing {
                                 chip8_in.send(Risp8Command::Pause).unwrap();
-                                self.play = false;
+                                self.is_playing = false;
                             } else {
                                 chip8_in.send(Risp8Command::Play).unwrap();
-                                self.play = true;
+                                self.is_playing = true;
                             },
-                            Char('m') => self.change_marker(),
+                            Char('s') => chip8_in.send(Risp8Command::SingleStep).unwrap(),
+                            Char('i') => {
+                                chip8_in.send(Risp8Command::SetExecutionMethod(ExecutionMethod::Interpreter)).unwrap();
+                                self.execution_method = ExecutionMethod::Interpreter;
+                            },
+                            Char('k') => {
+                                chip8_in.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter)).unwrap();
+                                self.execution_method = ExecutionMethod::CachedInterpreter;
+                            },
+                            Char('l') => {
+                                chip8_in.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter2)).unwrap();
+                                self.execution_method = ExecutionMethod::CachedInterpreter2;
+                            },
+                            Char('m') => {
+                                chip8_in.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter3)).unwrap();
+                                self.execution_method = ExecutionMethod::CachedInterpreter3;
+                            },
+                            Char('j') => {
+                                chip8_in.send(Risp8Command::SetExecutionMethod(ExecutionMethod::Jit)).unwrap();
+                                self.execution_method = ExecutionMethod::Jit;
+                            },
+                            Char('a') => self.change_marker(),
                             _ => (),
                         }
                     }

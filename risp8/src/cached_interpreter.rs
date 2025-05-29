@@ -1,10 +1,10 @@
 //! Cached interpreter.
 //!
 //! Implemented using ideas from :
-//! - https://emudev.org/2021/01/31/cached-interpreter.html
-//! - https://web.archive.org/web/20210301060701/https://ps1.asuramaru.com/emulator-development/cached-interpreters
+//! - <https://emudev.org/2021/01/31/cached-interpreter.html>
+//! - <https://web.archive.org/web/20210301060701/https://ps1.asuramaru.com/emulator-development/cached-interpreters>
 //!
-//! This is the basic cached interpreter: each entry in [Chip8:interpreter_caches] is the cached instructions starting
+//! This is the basic cached interpreter: each entry in [Chip8::interpreter_caches] is the cached instructions starting
 //! at this PC, index with PC - 0x200 because theoretically there is no code execution below 0x200.
 //!
 //! When cache needs to be invalidated I have to search though every entries, which can be very slow if a lot of self-
