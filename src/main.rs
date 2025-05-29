@@ -85,6 +85,7 @@ fn main() {
             let playing = if ctx.is_playing { "Running" } else { "Paused" };
             let exec = match ctx.execution_method {
                 ExecutionMethod::Interpreter => "Interpreter",
+                ExecutionMethod::CachedInterpreter => "Cached interpreter",
                 ExecutionMethod::Jit => "Jit",
             };
 
@@ -137,11 +138,17 @@ fn handle_keyboard(key: &KeyboardInput, ctx: &mut ExecutionContext) {
                 ctx.execution_method = ExecutionMethod::Interpreter;
                 ctx.update_window = true;
             },
+            VirtualKeyCode::C => {
+                ctx.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter)).unwrap();
+                ctx.execution_method = ExecutionMethod::CachedInterpreter;
+                ctx.update_window = true;
+            },
             VirtualKeyCode::J => {
                 ctx.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::Jit)).unwrap();
                 ctx.execution_method = ExecutionMethod::Jit;
                 ctx.update_window = true;
             },
+            VirtualKeyCode::S  => if key.state == ElementState::Pressed { ctx.send.send(Risp8Command::SingleStep).unwrap() },
             VirtualKeyCode::P => {
                 if key.state == ElementState::Pressed {
                     if ctx.is_playing {
