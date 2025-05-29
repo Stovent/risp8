@@ -96,9 +96,17 @@ fn main() {
         }
 
         match event {
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-                ctx.send.send(Risp8Command::Exit).unwrap();
-                *flow = ControlFlow::Exit;
+            Event::WindowEvent { event: evt, .. } => {
+                match evt {
+                    WindowEvent::CloseRequested => {
+                        ctx.send.send(Risp8Command::Exit).unwrap();
+                        *flow = ControlFlow::Exit;
+                    },
+                    WindowEvent::Resized(size) => {
+                        let _ = pixels.resize_surface(size.width, size.height);
+                    },
+                    _ => (),
+                }
             },
             Event::MainEventsCleared => {
                 if ctx.send.send(Risp8Command::GetScreen).is_err() {
