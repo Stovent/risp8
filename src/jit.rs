@@ -181,39 +181,82 @@ impl Chip8 {
                             );
                         },
                         0x8004 => {
+                            let x = opcode >> 8 & 0xF;
+                            let y = opcode >> 4 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addry = self.V.address(y as isize) as i64;
+                            let addrf = self.V.address(0xF) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addry
+                                ; mov al, BYTE [rdx]
+                                ; mov rdx, QWORD addrx
+                                ; add BYTE [rdx], al
+                                ; mov rdx, QWORD addrf
+                                ; setc BYTE [rdx]
                             );
-                            break 'outer;
                         },
                         0x8005 => {
+                            let x = opcode >> 8 & 0xF;
+                            let y = opcode >> 4 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addry = self.V.address(y as isize) as i64;
+                            let addrf = self.V.address(0xF) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addry
+                                ; mov al, BYTE [rdx]
+                                ; mov rdx, QWORD addrx
+                                ; sub BYTE [rdx], al
+                                ; mov rdx, QWORD addrf
+                                ; setnc BYTE [rdx]
                             );
-                            break 'outer;
                         },
                         0x8006 => {
+                            let x = opcode >> 8 & 0xF;
+                            // let y = opcode >> 4 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            // let addry = self.V.address(y as isize) as i64;
+                            let addrf = self.V.address(0xF) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addrx
+                                ; shr BYTE [rdx], 1
+                                ; mov rdx, QWORD addrf
+                                ; setc BYTE [rdx]
                             );
-                            break 'outer;
                         },
                         0x8007 => {
+                            let x = opcode >> 8 & 0xF;
+                            let y = opcode >> 4 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            let addry = self.V.address(y as isize) as i64;
+                            let addrf = self.V.address(0xF) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addry
+                                ; mov al, BYTE [rdx]
+                                ; mov rdx, QWORD addrx
+                                ; mov ah, BYTE [rdx]
+                                ; sub al, ah
+                                ; mov BYTE [rdx], al
+                                ; mov rdx, QWORD addrf
+                                ; setnc BYTE [rdx]
                             );
-                            break 'outer;
                         },
                         0x800E => {
+                            let x = opcode >> 8 & 0xF;
+                            // let y = opcode >> 4 & 0xF;
+                            let addrx = self.V.address(x as isize) as i64;
+                            // let addry = self.V.address(y as isize) as i64;
+                            let addrf = self.V.address(0xF) as i64;
                             dynasm!(asm
                                 ; .arch x64
-                                ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
+                                ; mov rdx, QWORD addrx
+                                ; shl BYTE [rdx], 1
+                                ; mov rdx, QWORD addrf
+                                ; setc BYTE [rdx]
                             );
-                            break 'outer;
                         },
                         _ => panic!("Unknown opcode {}", opcode),
                     }
@@ -353,6 +396,6 @@ impl Chip8 {
             ; ret
         );
 
-        self.caches.create(block_pc, asm.finalize().unwrap());
+        self.caches.add(block_pc, asm.finalize().unwrap());
     }
 }
