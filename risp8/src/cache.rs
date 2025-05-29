@@ -74,9 +74,10 @@ impl Caches {
 
     /// Deletes all the caches that contain the given address range (`end_addr` inclusive).
     pub fn invalidate(&mut self, beg_addr: u16, end_addr: u16) {
-        let _: Vec<_> = self.caches.extract_if(|cache| {
-            beg_addr >= cache.pc && beg_addr < cache.end_pc ||
-            end_addr >= cache.pc && end_addr < cache.end_pc
-        }).collect();
+        assert!(beg_addr <= end_addr);
+
+        self.caches.retain(|cache| {
+            end_addr < cache.pc || beg_addr >= cache.end_pc
+        });
     }
 }
