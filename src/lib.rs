@@ -1,10 +1,14 @@
 #![allow(non_snake_case)]
 
+#[cfg(target_arch = "x86_64")]
 mod cache;
 mod interpreter;
+#[cfg(target_arch = "x86_64")]
 mod jit;
+mod opcode;
 mod utils;
 
+#[cfg(target_arch = "x86_64")]
 use cache::Caches;
 
 use std::fs::File;
@@ -27,6 +31,7 @@ pub struct Chip8 {
     last_key: u8,
     timer: Instant,
 
+    #[cfg(target_arch = "x86_64")]
     caches: Caches,
 }
 
@@ -50,6 +55,7 @@ impl Chip8 {
             last_key: 255,
             timer: Instant::now(),
 
+            #[cfg(target_arch = "x86_64")]
             caches: Caches::new(),
         };
         core.load_font();

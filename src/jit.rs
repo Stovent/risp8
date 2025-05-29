@@ -39,8 +39,8 @@ impl Chip8 {
         }
     }
 
-    // For self-modifying code, store the memory range used by each cache, and when writing to
-    // this location, invalidate the cache with an interrupt, perform the assignment in interpreter, then recompile the block.
+    // TODO: for self-modifying code, store the memory range used by each cache, and when writing to this location,
+    // invalidate the cache with an interrupt, perform the assignment in interpreter, then recompile the block.
     /// Uses the RAX, RCX and RDX (caller-saved) registers.
     ///
     /// EAX contains the return value of the block. RAX, RCX and RDX are used internally by the compiled code.
