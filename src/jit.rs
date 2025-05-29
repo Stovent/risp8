@@ -1,6 +1,6 @@
-use crate::Chip8;
+use crate::{Chip8, timer};
 use crate::opcode::Opcode;
-use crate::utils::Address;
+use crate::Address;
 
 use dynasmrt::{dynasm, DynasmApi, DynasmLabelApi, x64::Assembler};
 
@@ -52,6 +52,15 @@ impl Chip8 {
         let block_pc = pc;
         let mut asm = Assembler::new().expect("Failed to create new assembler");
 
+        let timer = timer as *const ();
+        let this = self as *mut Chip8;
+        dynasm!(asm
+            ; .arch x64
+            ; mov rax, QWORD timer as i64
+            ; mov rcx, QWORD this as i64
+            ; call rax
+        );
+
         'outer: loop {
             let opcode = Opcode::from((self.memory[pc as usize] as u16) << 8 | self.memory[pc as usize + 1] as u16);
 
@@ -98,11 +107,6 @@ impl Chip8 {
                     break 'outer;
                 },
                 0x3 => {
-                    dynasm!(asm
-                        ; .arch x64
-                        ; mov eax, DWORD Interrupts::make(Interrupts::UseInterpreter, pc) as i32
-                    );
-                    break 'outer;
                     let (x, kk) = opcode.xkk();
                     let addrx = self.V.address(x) as i64;
                     dynasm!(asm

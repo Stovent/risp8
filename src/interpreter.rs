@@ -1,9 +1,7 @@
-use crate::Chip8;
+use crate::{Chip8, timer};
 use crate::opcode::Opcode;
 
 use rand::Rng;
-
-use std::time::{Duration, Instant};
 
 impl Chip8 {
     /// Executes a single instruction using the interpreter.
@@ -202,16 +200,6 @@ impl Chip8 {
             _ => panic!("Unknown opcode {:04X}", opcode),
         };
 
-        if self.timer.elapsed() >= Duration::from_micros(16666) {
-            if self.delay > 0 {
-                self.delay -= 1;
-            }
-
-            if self.sound > 0 {
-                // TODO: play sound
-                self.sound -= 1;
-            }
-            self.timer = Instant::now();
-        }
+        timer(self);
     }
 }

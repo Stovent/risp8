@@ -1,10 +1,10 @@
-use crate::utils::Address;
+use crate::Address;
 
 use dynasmrt::{dynasm, DynasmApi, x64::Assembler, AssemblyOffset, mmap::ExecutableBuffer};
 
 pub struct Cache {
     pub pc: u16,
-    called_buf: ExecutableBuffer,
+    _called_buf: ExecutableBuffer,
     caller_buf: ExecutableBuffer,
     caller: fn(),
 }
@@ -19,12 +19,12 @@ impl Cache {
         fn dummy() {}
         let mut cache = Self {
             pc,
-            called_buf,
+            _called_buf: called_buf,
             caller_buf: Assembler::new().expect("Dummy assembler").finalize().unwrap(),
             caller: dummy,
         };
 
-        #[cfg(debug_assertions)] println!("New cache at {:#X} (size {}, {:?})", pc, cache.called_buf.size(), called);
+        #[cfg(debug_assertions)] println!("New cache at {:#X} (size {}, {:?})", pc, cache._called_buf.size(), called);
 
         // Saves the caller-saved registers RAX and RDX.
         // Call the cached code.
