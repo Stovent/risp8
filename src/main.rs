@@ -18,11 +18,21 @@ struct Obj<T>(UnsafeCell<T>);
 unsafe impl<T> std::marker::Sync for Obj<T> {}
 
 fn main() {
-    let chip8 = Chip8::new("ROM/PONG.ch8")
+    let mut args = std::env::args();
+    let exec = args.next().unwrap();
+    if args.len() != 1 {
+        println!("Usage: {} <ROM>", exec);
+        std::process::exit(1);
+    }
+
+    let romfile = args.next().unwrap();
+    let chip8 = Chip8::new(&romfile)
         .unwrap_or_else(|e| {
-            println!("Failed to open ROM: {}", e);
+            eprintln!("{}", e);
             std::process::exit(1);
         });
+    println!("Successfully opened ROM \"{}\"", romfile);
+
     let chip8_thread = Arc::new(Obj(UnsafeCell::new(chip8)));
     let chip8_gui = Arc::clone(&chip8_thread);
 
