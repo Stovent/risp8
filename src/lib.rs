@@ -1,10 +1,8 @@
 //! Experimental Chip8 interpreter, cached interpreter and Just-In-Time compiler.
 
-#![feature(const_eval_limit)]
 #![feature(const_mut_refs)]
 #![feature(const_option)]
-#![feature(drain_filter)]
-#![const_eval_limit = "0"]
+#![feature(extract_if)]
 
 use kanal::{Receiver, Sender, unbounded};
 
