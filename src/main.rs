@@ -15,8 +15,8 @@ const BLACK: [u8; 4] = [0x00, 0x00, 0x00, 0xFF];
 const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
 
 fn main() {
-    let freq = 10000usize;
-    let chip8 = match Chip8::new("ROM/MAZE.ch8", freq) {
+    let freq = 10000u64;
+    let chip8 = match Chip8::new("ROM/MAZE.ch8", freq as usize) {
         Ok(c) => c,
         Err(e) => {
             println!("{}", e);
@@ -33,7 +33,7 @@ fn main() {
         while *run_thread.lock().unwrap() {
             chip8_thread.lock().unwrap().jit();
             // chip8_thread.lock().unwrap().interpreter();
-            // thread::sleep(Duration::from_micros(1));
+            thread::sleep(Duration::from_micros(1_000_000 / freq));
         }
     });
 
