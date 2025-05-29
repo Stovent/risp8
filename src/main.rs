@@ -86,6 +86,8 @@ fn main() {
             let exec = match ctx.execution_method {
                 ExecutionMethod::Interpreter => "Interpreter",
                 ExecutionMethod::CachedInterpreter => "Cached interpreter",
+                ExecutionMethod::CachedInterpreter2 => "Cached interpreter 2",
+                ExecutionMethod::CachedInterpreter3 => "Cached interpreter 3",
                 ExecutionMethod::Jit => "Jit",
             };
 
@@ -141,6 +143,16 @@ fn handle_keyboard(key: &KeyboardInput, ctx: &mut ExecutionContext) {
             VirtualKeyCode::C => {
                 ctx.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter)).unwrap();
                 ctx.execution_method = ExecutionMethod::CachedInterpreter;
+                ctx.update_window = true;
+            },
+            VirtualKeyCode::V => {
+                ctx.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter2)).unwrap();
+                ctx.execution_method = ExecutionMethod::CachedInterpreter2;
+                ctx.update_window = true;
+            },
+            VirtualKeyCode::B => {
+                ctx.send.send(Risp8Command::SetExecutionMethod(ExecutionMethod::CachedInterpreter3)).unwrap();
+                ctx.execution_method = ExecutionMethod::CachedInterpreter3;
                 ctx.update_window = true;
             },
             VirtualKeyCode::J => {
