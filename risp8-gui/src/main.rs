@@ -1,4 +1,5 @@
 use std::thread;
+use std::sync::Arc;
 use std::time::Duration;
 
 use pixels::{Pixels, SurfaceTexture};
@@ -23,8 +24,8 @@ struct App {
     pub execution_method: ExecutionMethod,
 
     pub update_title: bool,
-    window: Option<Window>,
-    pixels: Option<Pixels>,
+    window: Option<Arc<Window>>,
+    pixels: Option<Pixels<'static>>,
 }
 
 impl App {
@@ -109,15 +110,15 @@ impl App {
         }
     }
 
-    fn pixels<'a>(&'a self) -> &'a Pixels {
+    fn pixels(&self) -> &Pixels<'_> {
         self.pixels.as_ref().unwrap()
     }
 
-    fn pixels_mut<'a>(&'a mut self) -> &'a mut Pixels {
+    fn pixels_mut(&mut self) -> &mut Pixels<'static> {
         self.pixels.as_mut().unwrap()
     }
 
-    fn window<'a>(&'a self) -> &'a Window {
+    fn window(&self) -> &Window {
         self.window.as_ref().unwrap()
     }
 }
@@ -128,8 +129,8 @@ impl ApplicationHandler for App {
             .with_title("risp8")
             .with_inner_size(LogicalSize::new(640, 320));
 
-        let window = event_loop.create_window(window_attributes).unwrap();
-        let pixels = new_pixels(&window);
+        let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
+        let pixels = new_pixels(Arc::clone(&window));
 
         self.window = Some(window);
         self.pixels = Some(pixels);
@@ -202,9 +203,9 @@ impl ApplicationHandler for App {
 }
 
 /// Creates a new Pixels renderer.
-fn new_pixels(window: &Window) -> Pixels {
+fn new_pixels(window: Arc<Window>) -> Pixels<'static> {
     let window_size = window.inner_size();
-    let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
+    let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, window);
     Pixels::new(State::SCREEN_WIDTH as u32, State::SCREEN_HEIGHT as u32, surface_texture).unwrap()
 }
 

@@ -8,6 +8,6 @@ description = "GUI frontend for risp8"
 repository = "https://github.com/Stovent/risp8"
 
 [dependencies]
-pixels = "0.14.0"
+pixels = "0.15.0"
 risp8 = { path = "../risp8" }
-winit = { version = "0.30.10", default-features = false, features = ["rwh_05", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"] }
+winit = { version = "0.30.10", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"] }
