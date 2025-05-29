@@ -29,16 +29,21 @@ pub struct Chip8 {
     screen: [[bool; 64]; 32],
     keys: [bool; 16],
 
-    last_key: u8,
+    /// If None, the ROM is not waiting for a key.
+    ///
+    /// If Some(> 0xF), a wait key instruction has occured but no new key has been pressed yet.
+    ///
+    /// If Some(<= 0xF), the awaited key has been pressed and instruction execution will resume on the next loop.
+    wait_key: Option<u8>,
     timer: Instant,
-
-    #[cfg(target_arch = "x86_64")]
-    caches: Caches,
 
     channel_in: Receiver<Risp8Command>,
     channel_out: Sender<Risp8Answer>,
     play: bool,
     execution_method: ExecutionMethod,
+
+    #[cfg(target_arch = "x86_64")]
+    caches: Caches,
 }
 
 impl Chip8 {
@@ -61,16 +66,16 @@ impl Chip8 {
             screen: [[false; 64]; 32],
             keys: [false; 16],
 
-            last_key: 255,
+            wait_key: None,
             timer: Instant::now(),
-
-            #[cfg(target_arch = "x86_64")]
-            caches: Caches::new(),
 
             channel_in,
             channel_out,
             play: false,
             execution_method: ExecutionMethod::Interpreter,
+
+            #[cfg(target_arch = "x86_64")]
+            caches: Caches::new(),
         };
 
         core.load_font();
@@ -130,17 +135,6 @@ impl Chip8 {
         }
     }
 
-    /// Sets a key as pressed or unpressed.
-    ///
-    /// `key` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
-    /// `pressed` = true if pressed, false if released.
-    fn set_key(&mut self, key: usize, pressed: bool) {
-        if key <= 0xF {
-            self.keys[key] = pressed;
-            self.last_key = key as u8;
-        }
-    }
-
     fn load_font(&mut self) {
         self.memory[0..80].copy_from_slice(&[
             0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -160,6 +154,39 @@ impl Chip8 {
             0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
             0xF0, 0x80, 0xF0, 0x80, 0x80, // F
         ]);
+    }
+
+    /// Sets a key as pressed or unpressed.
+    ///
+    /// `key` is the key number to set (0 to 9 for keys 0 to 9, and 10 to 15 for keys A to F).
+    /// `pressed` = true if pressed, false if released.
+    fn set_key(&mut self, key: usize, pressed: bool) {
+        if key <= 0xF {
+            if self.keys[key] && !pressed { // Key pressed then released.
+                match self.wait_key {
+                    Some(16..=u8::MAX) => self.wait_key = Some(key as u8),
+                    _ => (),
+                }
+            }
+            self.keys[key] = pressed;
+        }
+    }
+
+    fn wait_key(&mut self, x: usize) {
+        match self.wait_key {
+            Some(key) => if key <= 0xF {
+                // If key is valid, store the key in the given register.
+                self.V[x] = self.wait_key.take().unwrap();
+            } else {
+                // If it is still waiting for a key, decrement PC to make it loop over this instruction.
+                self.PC -= 2;
+            },
+            None => {
+                // First execution of the instruction, set it to waiting.
+                self.wait_key = Some(255);
+                self.PC -= 2;
+            },
+        }
     }
 
     fn clear_screen(&mut self) {
@@ -194,8 +221,10 @@ impl Chip8 {
             }
 
             if self.sound > 0 {
-                // TODO: play sound
                 self.sound -= 1;
+                let _ = self.channel_out.send(Risp8Answer::PlaySound);
+            } else {
+                let _ = self.channel_out.send(Risp8Answer::StopSound);
             }
 
             self.timer = Instant::now();
@@ -203,13 +232,23 @@ impl Chip8 {
     }
 }
 
-#[cfg(target_os = "windows")]
-pub(crate) extern "win64" fn handle_timers(this: &mut Chip8) {
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+extern "win64" fn wait_key(this: &mut Chip8, x: usize) {
+    this.wait_key(x);
+}
+
+#[cfg(all(not(target_os = "windows"), target_arch = "x86_64"))]
+extern "sysv64" fn wait_key(this: &mut Chip8, x: usize) {
+    this.wait_key(x);
+}
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+extern "win64" fn handle_timers(this: &mut Chip8) {
     this.handle_timers();
 }
 
-#[cfg(not(target_os = "windows"))]
-pub(crate) extern "sysv64" fn handle_timers(this: &mut Chip8) {
+#[cfg(all(not(target_os = "windows"), target_arch = "x86_64"))]
+extern "sysv64" fn handle_timers(this: &mut Chip8) {
     this.handle_timers();
 }
 
@@ -253,5 +292,12 @@ pub enum ExecutionMethod {
 /// Answers from the core.
 #[derive(Debug)]
 pub enum Risp8Answer {
+    /// A copy of the screen.
     Screen([[bool; 64]; 32]),
+    /// Indicates that the sound should start to be continuously emited.
+    ///
+    /// This is emitted 60 times per seconds.
+    PlaySound,
+    /// Indicates that the sound should stop.
+    StopSound,
 }

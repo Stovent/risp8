@@ -9,9 +9,6 @@ repository = "https://github.com/Stovent/risp8"
 keywords = ["chip8", "emulator", "interpreter", "jit"]
 categories = ["compilers", "emulators"]
 
-[profile.dev]
-overflow-checks = false
-
 [dependencies]
 dynasmrt = "2.0.0"
 kanal = "0.1.0-pre8"

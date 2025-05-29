@@ -1,13 +1,8 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-pub struct Opcode(u16);
+pub struct Opcode(pub u16);
 
 impl Opcode {
-    #[inline(always)]
-    pub const fn u16(self) -> u16 {
-        self.0
-    }
-
     #[inline(always)]
     pub const fn x(self) -> usize {
         self.0 as usize >> 8 & 0xF
