@@ -1,0 +1,13 @@
+[package]
+name = "risp8-tui"
+version = "0.1.0"
+authors = ["Stovent <StoventTAS@gmail.com>"]
+edition = "2021"
+license = "MIT"
+description = "TUI frontend for risp8"
+repository = "https://github.com/Stovent/risp8"
+
+[dependencies]
+crossterm = "0.27.0"
+ratatui = "0.26.1"
+risp8 = { path = "../risp8" }

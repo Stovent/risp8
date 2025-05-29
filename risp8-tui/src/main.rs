@@ -4,9 +4,7 @@ use crossterm::ExecutableCommand;
 use crossterm::event::{self, KeyCode::Char, KeyEventKind};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, window_size};
 
-use kanal::{Sender, Receiver};
-
-use risp8::{Chip8, Risp8Answer, Risp8Command, Screen, State, DEFAULT_SCREEN};
+use risp8::{Chip8, Receiver, Risp8Answer, Risp8Command, Screen, Sender, State, DEFAULT_SCREEN};
 
 use ratatui::{Frame, Terminal, TerminalOptions, Viewport};
 use ratatui::backend::CrosstermBackend;
@@ -166,4 +164,27 @@ impl TuiApp {
 
         Ok(false)
     }
+}
+
+fn print_usage_and_exit(exec: &str) -> ! {
+    println!("Usage: {exec} <ROM>");
+    std::process::exit(1);
+}
+
+fn main() {
+    let mut args = std::env::args();
+    let exec = args.next().unwrap();
+    if args.len() != 1 {
+        print_usage_and_exit(&exec);
+    }
+
+    let rom_file = args.next().unwrap();
+    let (chip8, chip8_in, chip8_out) = Chip8::new(&rom_file)
+        .unwrap_or_else(|e| {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        });
+
+    let mut app = TuiApp::new();
+    app.run(chip8, chip8_in, chip8_out).unwrap();
 }

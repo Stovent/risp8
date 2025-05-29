@@ -1,0 +1,13 @@
+[package]
+name = "risp8-gui"
+version = "0.1.0"
+authors = ["Stovent <StoventTAS@gmail.com>"]
+edition = "2021"
+license = "MIT"
+description = "GUI frontend for risp8"
+repository = "https://github.com/Stovent/risp8"
+
+[dependencies]
+pixels = "0.13.0"
+risp8 = { path = "../risp8" }
+winit = { version = "0.29.15", default-features = false, features = ["rwh_05", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"] }
