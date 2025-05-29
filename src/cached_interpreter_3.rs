@@ -25,9 +25,8 @@ use crate::{
 };
 
 impl Chip8 {
-    pub(super) fn cached_interpreter_3(&mut self) {
-        self.handle_timers();
-
+    /// Executes a block of instructions using the cached interpreter variant 3.
+    pub fn cached_interpreter_3(&mut self) {
         let cache_index = addr_to_index(self.state.PC);
         let pc = self.state.PC;
         self.state.PC += 2;
@@ -52,8 +51,10 @@ impl Chip8 {
             let beg = addr_to_index((ret >> 16) as u16);
             let end = addr_to_index(ret as u16);
             for addr in beg..=end {
-                self.interpreter_caches_3[addr as usize] = None;
+                self.interpreter_caches_3[addr] = None;
             }
         }
+
+        self.handle_timers();
     }
 }
